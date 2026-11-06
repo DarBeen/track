@@ -1,0 +1,402 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>RaceBox 賽道分析器</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap">
+<style>
+/* Layout: pit-wall timing sheet. Summary strip, practice list, then map + synced traces, then corner sheet. */
+:root{--bg:#0f0f0f;--panel:#1a1a1a;--fg:#f5f5f5;--muted:#d0d0d0;--rule:#333;--rail:#5c5c5c;--band:#232323;--a:#ff6a00;--b:#f5f5f5;--on:#0f0f0f;--err:#ff6f61;color-scheme:dark;accent-color:#ff6a00;
+--num:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;--txt:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif}
+body{background:var(--bg);color:var(--fg);font:18px/1.7 var(--txt)}
+.wrap{max-width:1180px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:28px}
+.wrap>*{min-width:0}
+.top{border-bottom:3px solid var(--a);padding-bottom:14px;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between;align-items:flex-end}
+h1{font:700 32px/1.1 var(--num),var(--txt);margin:0;letter-spacing:.01em}
+.sub{color:var(--muted);margin:4px 0 0}
+h2{font-size:20px;margin:0 0 4px;font-weight:700;text-wrap:balance}
+.hint{line-height:1.6;color:var(--muted);font-size:16px;margin:0 0 12px;max-width:65ch}
+.btn{display:inline-block;background:var(--a);color:var(--on);font-weight:700;border:0;border-radius:3px;padding:9px 14px;font:500 17px var(--txt);cursor:pointer}
+.btn:focus-within,button:focus-visible,select:focus-visible,tr:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+.err{color:var(--err);font-weight:500;margin:0}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-block:2px solid var(--a)}
+.stat:first-child b{color:var(--a)}.gain{color:var(--a)}
+h2{border-left:4px solid var(--a);padding-left:9px}
+.tabs button:hover{color:var(--fg)}.link:hover,.x:hover{border-color:var(--a)}
+.stat{padding:12px 14px;border-left:1px solid var(--rule);min-width:0}.stat:first-child{border-left:0;padding-left:0}
+.stat b{display:block;font:700 36px/1.05 var(--num);font-variant-numeric:tabular-nums}
+.stat span{display:block;font-size:16px;color:var(--muted)}.stat small{display:block;font-size:15px;color:var(--muted)}
+.focus{display:grid;gap:0;list-style:none;margin:0;padding:0;border-top:1px solid var(--rule)}
+.focus li{display:grid;grid-template-columns:76px 100px minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-bottom:1px solid var(--rule)}
+.tag{font:700 28px/1 var(--num)}.tag small{display:block;font:400 15px var(--txt);color:var(--muted);margin-top:3px}
+.gain{font:700 28px/1 var(--num);font-variant-numeric:tabular-nums}.gain small{display:block;font:400 15px var(--txt);color:var(--muted);margin-top:3px}
+.focus p{margin:0;font-size:17px;min-width:0}
+.link{background:none;border:1px solid var(--rule);color:var(--fg);min-height:44px;padding:8px 12px;border-radius:3px;font:500 16px var(--txt);cursor:pointer;white-space:nowrap}
+.pick{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-bottom:12px}
+.pick label{flex-wrap:wrap;display:flex;gap:8px;align-items:center;font-size:17px;font-weight:500}
+.sw{display:inline-block;width:18px;height:3px;border-radius:2px}
+select{font:500 18px var(--txt);padding:7px 8px;border:1px solid var(--rule);border-radius:3px;background:var(--panel);color:var(--fg)}
+.laps{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.lap{display:grid;grid-template-columns:auto 1fr;gap:0 8px;text-align:left;background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:6px 9px;color:var(--fg);cursor:pointer;font:400 15px var(--txt);min-width:0}
+.lap b{font:600 22px/1.2 var(--num);font-variant-numeric:tabular-nums;grid-column:2;text-align:right}
+.lap i{font:600 18px/1.5 var(--num);font-style:normal}
+.lap span{grid-column:1/3;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lap.isA{box-shadow:inset 0 0 0 2px var(--a)}.lap.isB{box-shadow:inset 0 0 0 2px var(--b)}
+.an{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,8fr);gap:16px;align-items:start}
+.panel{background:var(--panel);border:1px solid var(--rule);border-radius:4px;padding:12px;min-width:0}
+.sticky{position:sticky;top:calc(env(safe-area-inset-top,0px) + 56px)}
+.lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:15px;color:var(--muted);margin-top:6px}
+.lg span{display:flex;align-items:center;gap:6px}
+#map{display:block;width:100%;max-height:480px;touch-action:pan-y;cursor:crosshair}
+.read{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;padding:0 0 10px;border-bottom:1px solid var(--rule);margin-bottom:6px}
+.read div{min-width:0;font-size:15px;color:var(--muted)}.read b{display:block;font:600 22px/1.15 var(--num);color:var(--fg);font-variant-numeric:tabular-nums;white-space:nowrap}
+.chart h3{font-size:16px;font-weight:500;margin:12px 0 0;color:var(--muted)}.chart h3 b{color:var(--fg);font-weight:700}
+.chart svg{display:block;width:100%;touch-action:pan-y;cursor:crosshair}
+svg text{fill:var(--muted);font:15px var(--num);font-variant-numeric:tabular-nums}
+.gr{stroke:var(--rule);stroke-width:1}.bd{fill:var(--band)}.ch{stroke:var(--fg);stroke-width:1}
+.tw{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:980px;font-size:16px;font-variant-numeric:tabular-nums}
+th{font-weight:500;color:var(--muted);font-size:15px;text-align:right;padding:8px 10px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{text-align:right;padding:8px 10px;border-bottom:1px solid var(--rule);white-space:nowrap}
+tr:last-child td{border-bottom:0}tbody tr{cursor:pointer}tbody tr.on td{background:var(--band)}
+th:first-child,td:first-child{text-align:left;position:sticky;left:0;background:var(--panel);font-weight:700}tbody tr.on td:first-child{background:var(--band)}
+td em{font-style:normal;color:var(--muted)}.w{font-weight:700}
+.rd{display:grid;grid-template-columns:24px minmax(100px,150px) minmax(100px,150px) 84px repeat(3,minmax(84px,1fr)) 128px 108px 44px;gap:10px;align-items:center;padding:10px 0;border-bottom:1px solid var(--rule)}
+#riders{border-top:1px solid var(--rule)}
+.fb{position:relative;display:inline-block;overflow:hidden;border-radius:3px}.fb:focus-within{outline:2px solid var(--a);outline-offset:2px}.fb input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;font-size:60px}
+input::placeholder{color:#b5b5b5;opacity:1}
+.msg{margin:0;font-weight:500}
+.an{scroll-margin-top:56px}.fb{vertical-align:middle}#clr{vertical-align:middle}
+#main{display:grid;gap:20px}#main[hidden]{display:none}#main>*{min-width:0}
+.tabs{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:var(--bg);border-bottom:2px solid var(--rule)}
+.tabs button{background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;padding:11px 4px;font:500 18px var(--txt);color:var(--muted);cursor:pointer;min-width:0}
+.tabs button[aria-selected=true]{color:var(--fg);font-weight:700;border-bottom-color:var(--a)}
+.page{display:grid;gap:28px;min-width:0;animation:pgin .18s ease-out}.page>*{min-width:0}
+@keyframes pgin{from{opacity:0;transform:translateX(var(--dx,0))}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.page{animation:none}}
+.pn{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding-top:14px;border-top:1px solid var(--rule);color:var(--muted);font:600 18px var(--num)}.pn .link{min-height:40px;padding:6px 14px}.pn #prev{justify-self:start;grid-column:1;grid-row:1}.pn #pgN{grid-column:2;grid-row:1}.pn #next{justify-self:end;grid-column:3;grid-row:1}.pn [hidden]{display:none}
+.rd.off>*:not(.x):not(input){opacity:.5}
+.rd input[type=number]{font:500 18px var(--num);padding:6px 8px;border:1px solid var(--rule);border-radius:3px;background:var(--panel);color:var(--fg);width:100%;min-width:0;box-sizing:border-box}
+.grp{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 10px;font-size:17px;font-weight:500}
+.steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 24px;list-style:none;margin:0;padding:0;border-block:2px solid var(--a)}
+.steps li{padding:16px 0;min-width:0}.steps b{color:var(--a);display:block;font:700 28px/1.1 var(--num);margin-bottom:6px}.steps p{margin:0;font-size:17px;color:var(--muted)}
+.cta{display:flex;flex-wrap:wrap;gap:12px;align-items:center}.cta p{margin:0;color:var(--muted);font-size:16px;max-width:60ch}
+.rs{display:contents}
+.rd input[type=text]{font:500 18px var(--txt);padding:6px 8px;border:1px solid var(--rule);border-radius:3px;background:var(--panel);color:var(--fg);width:100%;min-width:0;box-sizing:border-box}
+.rd div{min-width:0;font-size:15px;color:var(--muted)}.rd div b{display:block;font:600 22px/1.2 var(--num);color:var(--fg);font-variant-numeric:tabular-nums}
+.rd label{display:flex;gap:6px;align-items:center;font-size:16px;white-space:nowrap}
+.x{background:none;border:1px solid var(--rule);color:var(--muted);border-radius:3px;width:44px;height:44px;font:500 18px var(--txt);cursor:pointer}
+.rg+.rg{margin-top:14px}.rg h3{font-size:17px;margin:0 0 6px}
+.notes{font-size:16px;color:var(--muted);margin:0;padding-left:18px;max-width:75ch}
+@media(max-width:1100px){.rd{grid-template-columns:24px minmax(0,1fr) 84px}.rd .x{grid-column:3;grid-row:1;justify-self:end}.rd .bk{grid-column:1/3}.rd .rs{grid-column:1/4;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.rd .link{grid-column:1/4;justify-self:start}.rd>span:empty{display:none}}
+@media(max-width:820px){.an{grid-template-columns:minmax(0,1fr)}.sticky{position:static}#map{max-height:380px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}.stat:nth-child(odd){border-left:0;padding-left:0}.stat:nth-child(n+3){border-top:1px solid var(--rule)}.read b{font-size:18px}
+.rd{grid-template-columns:24px minmax(0,1fr) 84px}.rd .x{grid-column:3;grid-row:1;justify-self:end}.rd .bk{grid-column:1/3}.rd .rs{grid-column:1/4;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.rd .link{grid-column:1/4;justify-self:start}.rd>span:empty{display:none}
+.steps{grid-template-columns:minmax(0,1fr)}
+.focus li{grid-template-columns:64px 88px minmax(0,1fr)}.focus p{grid-column:1/4}.focus .link{grid-column:3;grid-row:1;justify-self:end}}
+</style>
+<div class="wrap">
+<header class="top"><div><h1>RaceBox 賽道分析器</h1><p class="sub" id="meta">KYC Track School</p></div>
+<div><button class="link" id="clr" hidden style="margin-right:8px">清空</button><span class="fb"><span class="btn">加入 RaceBox CSV</span><input id="file" type="file" multiple aria-label="加入騎士 CSV"></span></div></header>
+<p class="err" id="err" role="alert" hidden></p><p class="msg" id="msg" role="status" hidden></p>
+<section id="empty"><h2 style="font-size:22px;margin-bottom:12px">把 RaceBox 資料變成逐彎比較</h2><ol class="steps"><li><b>1 匯入</b><p>從 RaceBox 網站下載賽道紀錄的 CSV，用「加入 RaceBox CSV」按鈕選檔；電腦上也能拖進頁面。</p></li><li><b>2 分析</b><p>自動切彎，找出每彎最值得練的地方，也能比較任兩圈。</p></li><li><b>3 資料比對</b><p>按「匯出分享檔」把最快幾圈傳給車友，對方加入後就能逐彎比較。</p></li></ol><p class="hint" style="margin-top:12px;max-width:75ch">檔案只在你的瀏覽器裡處理，不會上傳。</p></section>
+<div id="main" hidden>
+<nav class="tabs" id="tabs" role="tablist" aria-label="頁面"><button role="tab" data-p="0">總覽</button><button role="tab" data-p="1">重點彎</button><button role="tab" data-p="2">比較</button><button role="tab" data-p="3">每彎</button></nav>
+<div class="page" data-page="0"><section><h2>騎士</h2><p class="hint" id="rH"></p><div class="grp" id="grpW" hidden><label for="grp">車輛分組</label><select id="grp"></select></div><div id="riders"></div><p class="hint" style="margin:10px 0 0">分享檔只含最快 3 圈和你填的資料，已移除裝置序號，但仍有日期時間和賽道 GPS 軌跡，請傳給信任的人。</p></section>
+<section class="stats" id="stats"></section></div>
+<div class="page" data-page="1" hidden><section><h2 id="fT"></h2><p class="hint" id="fH"></p><ol class="focus" id="focus"></ol></section></div>
+<div class="page" data-page="2" hidden><section><h2 id="pT">選兩圈比較</h2>
+<div class="pick"><label><i class="sw" style="background:var(--a)"></i><span id="pA">基準圈</span> <select id="selA"></select></label><label><i class="sw" style="background:var(--b)"></i><span id="pB">比較圈</span> <select id="selB"></select></label></div>
+<div id="laps"></div><p class="hint" id="cH" style="margin:10px 0 0" hidden></p></section>
+<section class="an">
+<div class="panel sticky"><h2>哪一段誰比較快</h2><svg id="map" role="img" aria-label="賽道軌跡，顏色表示兩圈在各路段誰較快"></svg>
+<div class="lg"><span><i class="sw" style="background:var(--a)"></i><span id="lgA"></span></span><span><i class="sw" style="background:var(--b)"></i><span id="lgB"></span></span><span><i class="sw" style="background:var(--rail)"></i>差不多</span></div></div>
+<div class="panel"><div class="read" id="read"></div>
+<div class="chart"><h3>速度 km/h</h3><svg id="cV"></svg><h3 id="dT"></h3><svg id="cD"></svg><h3>煞車減速度 G（上方為煞車，下方為加速）</h3><svg id="cB"></svg><h3>傾角 °（上方右傾，下方左傾）</h3><svg id="cL"></svg></div>
+<p class="hint" style="margin:8px 0 0">橫軸是賽道距離（公尺）。在圖上或軌跡上滑動，可查看該位置的數字。</p></div>
+</section></div>
+<div class="page" data-page="3" hidden><section><h2>每彎比較</h2><p class="hint" id="tH"></p><div class="tw"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div></section></div>
+<div class="pn"><button class="link" id="prev"></button><span id="pgN"></span><button class="link" id="next"></button></div>
+
+</div>
+</div>
+<script>
+// ---- analysis core: pure functions, no DOM ----
+function splitCsv(l,d){if(l.indexOf('"')<0)return l.split(d);const o=[];let c='',q=false;for(let i=0;i<l.length;i++){const h=l[i];if(h==='"'){if(q&&l[i+1]==='"'){c+='"';i++}else q=!q}else if(h===d&&!q){o.push(c);c=''}else c+=h}o.push(c);return o}
+const colKey=n=>String(n).replace(/\(.*?\)|\[.*?\]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const COLS={t:['time','timestamp','datetime','utctime','timeutc','utc','date'],a:['latitude','lat','gpslatitude'],o:['longitude','lon','lng','long','gpslongitude'],v:['speed','gpsspeed','speedkmh','speedkph','velocity'],l:['lap','lapnumber','lapindex','lapno'],g:['gforcex','gforcelongitudinal','gx','accx','accelx'],n:['leanangle','lean','leandeg','bankangle']};
+function parseRaceBox(text){
+  text=String(text).replace(/^﻿/,'');
+  if(/^PK/.test(text))throw new Error('這是 Excel 檔，請下載或另存成 CSV。');
+  const lines=text.split(/\r\n|\r|\n/);let h=-1,d=',',ks=[];const pos=(k,set)=>{for(const n of set){const x=k.indexOf(n);if(x>=0)return x}return -1};
+  for(let i=0;i<lines.length&&h<0;i++)for(const c of [',',';','\t']){if(lines[i].indexOf(c)<0)continue;const k=splitCsv(lines[i],c).map(colKey);if(pos(k,COLS.a)>=0&&pos(k,COLS.o)>=0){h=i;d=c;ks=k;break}}
+  if(h<0){const f=lines.find(l=>l.trim())||'';throw new Error('找不到緯度和經度欄位，請確認是從 RaceBox 網站下載的賽道紀錄 CSV。檔案開頭是：'+f.slice(0,60))}
+  const num=d===';'?(v=>+String(v).trim().replace(',','.')):(v=>+v);
+  const meta={},official={};
+  for(let i=0;i<h;i++){const p=splitCsv(lines[i],d).map(x=>x.trim());if(!p[0])continue;const m=p[0].match(/^Lap\s+(\d+)$/i),t=m&&num(p[1]);if(m&&t>0)official[+m[1]]=t;else if(p.length>=2)meta[p[0]]=p.slice(1).join(',').trim();}
+  const ix={};for(const c in COLS)ix[c]=pos(ks,COLS[c]);
+  const miss=[['t','時間'],['v','速度'],['l','圈數 Lap']].filter(x=>ix[x[0]]<0).map(x=>x[1]);
+  if(miss.length)throw new Error('缺少'+miss.join('、')+'欄位'+(ix.l<0?'，這筆可能不是賽道模式的紀錄':'')+'。檔案裡的欄位：'+ks.slice(0,12).join(', '));
+  const by={};
+  for(let i=h+1;i<lines.length;i++){if(!lines[i].trim())continue;const p=splitCsv(lines[i],d),lap=parseInt(p[ix.l]);if(!(lap>0))continue;const tv=String(p[ix.t]).trim();let t=Date.parse(tv);t=isNaN(t)?num(tv):t/1000;const lat=num(p[ix.a]),lon=num(p[ix.o]),v=num(p[ix.v]);if(!isFinite(t)||!isFinite(lat)||!isFinite(lon)||!isFinite(v))continue;
+    (by[lap]=by[lap]||[]).push({t,lat,lon,v,g:ix.g>=0?(num(p[ix.g])||0):0,lean:ix.n>=0?(num(p[ix.n])||0):0});}
+  if(!Object.keys(by).length)throw new Error('檔案有資料，但沒有分圈。請確認紀錄是賽道模式，並已在 RaceBox 選好賽道。');
+  return {meta,official,by};
+}
+function smooth(a,w){const o=new Array(a.length);let s=0,n=0;const q=[];for(let i=0,j=0;i<a.length;i++){const hi=Math.min(a.length-1,i+w),lo=Math.max(0,i-w);let t=0;for(let k=lo;k<=hi;k++)t+=a[k];o[i]=t/(hi-lo+1);}return o;}
+function interpGrid(xs,ys,grid){const o=new Float64Array(grid.length);let j=0;for(let i=0;i<grid.length;i++){const g=grid[i];while(j<xs.length-2&&xs[j+1]<g)j++;const d=xs[j+1]-xs[j];const f=d>1e-9?Math.min(1,Math.max(0,(g-xs[j])/d)):0;o[i]=ys[j]+(ys[j+1]-ys[j])*f;}return o;}
+function analyze(sessions){
+  // every lap gets a global id: session uid * 1000 + lap number
+  const by={},official={},sgnOf={},owner={};
+  const ids=[];
+  for(const s of sessions){const own=Object.keys(s.raw.by).map(Number).filter(l=>s.raw.by[l].length>50);
+    if(!own.length)throw new Error('「'+s.name+'」的檔案沒有完整的圈。');
+    // decel sign per file: make brake positive regardless of device axis convention
+    let cov=0,lg=own.reduce((a,b)=>s.raw.by[b].length>s.raw.by[a].length?b:a);const rr=s.raw.by[lg];for(let i=1;i<rr.length;i++)cov+=(rr[i].v-rr[i-1].v)*rr[i].g;const sg_=cov<0?1:-1;
+    for(const l of own){const id=s.uid*1000+l;by[id]=s.raw.by[l];official[id]=s.raw.official[l];sgnOf[id]=sg_;owner[id]=s;ids.push(id);}}
+  ids.sort((a,b)=>a-b);
+  if(ids.length<2)throw new Error('這個檔案少於 2 個完整圈，無法比較。');
+  const raw={by,official};
+  const dur={};for(const id of ids){const r=raw.by[id];const dt=(r[r.length-1].t-r[0].t)/(r.length-1);dur[id]=raw.official[id]||(r[r.length-1].t-r[0].t+dt);}
+  // master line: fastest lap overall, ignoring partial laps
+  const ds=ids.map(i=>dur[i]).sort((a,b)=>a-b),med=ds[ds.length>>1],cand=ids.filter(i=>dur[i]>=med*.75);
+  const best=cand.reduce((a,b)=>dur[b]<dur[a]?b:a);
+  const all=raw.by[best],lat0=all[0].lat,lon0=all[0].lon,kx=111320*Math.cos(lat0*Math.PI/180),ky=110574;
+  for(const id of ids)for(const p of raw.by[id]){p.x=(p.lon-lon0)*kx;p.y=(p.lat-lat0)*ky;}
+  // master line = best lap, lightly smoothed
+  const mx=smooth(all.map(p=>p.x),2),my=smooth(all.map(p=>p.y),2),ms=[0];
+  for(let i=1;i<mx.length;i++)ms.push(ms[i-1]+Math.hypot(mx[i]-mx[i-1],my[i]-my[i-1]));
+  const L=ms[ms.length-1],step=1,n=Math.floor(L/step)+1,grid=Float64Array.from({length:n},(_,i)=>i*step);grid[n-1]=L;
+  const laps={},valid=[];
+  for(const id of ids){
+    const r=raw.by[id],sgn=sgnOf[id];let k=0;const S=[],T=[],O=[];
+    const fwd=45;
+    for(let i=0;i<r.length;i++){const p=r[i];let bd=1e18,bs=0,bo=0,bk=k;
+      for(let j=Math.max(0,k-2);j<Math.min(mx.length-1,k+fwd);j++){const ax=mx[j],ay=my[j],dx=mx[j+1]-ax,dy=my[j+1]-ay,l2=dx*dx+dy*dy||1e-9;
+        const f=Math.min(1,Math.max(0,((p.x-ax)*dx+(p.y-ay)*dy)/l2)),qx=ax+f*dx,qy=ay+f*dy,d=(p.x-qx)**2+(p.y-qy)**2;
+        if(d<bd){bd=d;bk=j;bs=ms[j]+f*(ms[j+1]-ms[j]);bo=Math.sign(dx*(p.y-ay)-dy*(p.x-ax))*Math.sqrt(d);}}
+      k=bk;S.push(i?Math.max(bs,S[i-1]):bs);T.push(p.t-r[0].t);O.push(bo);}
+    const rowDur=T[T.length-1],scale=dur[id]/(rowDur+(rowDur/(r.length-1)));
+    // anchor time ends so that every lap's t(L)-t(0) equals its official lap time
+    const xs=[0,...S.map(s=>Math.max(s,1e-6)),L+1e-3],ts=[0,...T.map(t=>(t+rowDur/(r.length-1)/2)*scale),dur[id]];
+    for(let i=1;i<xs.length;i++)if(xs[i]<=xs[i-1])xs[i]=xs[i-1]+1e-6;
+    const t=interpGrid(xs,ts,grid);t[0]=0;t[n-1]=dur[id];
+    const lin=a=>interpGrid(xs,[a[0],...a,a[a.length-1]],grid);
+    const lap={id,dur:dur[id],s:grid,t,v:lin(r.map(p=>p.v)),b:Float64Array.from(smooth(Array.from(lin(r.map(p=>sgn*p.g))),3)),lean:lin(r.map(p=>p.lean)),off:lin(O),x:lin(r.map(p=>p.x)),y:lin(r.map(p=>p.y)),
+      vmax:Math.max(...r.map(p=>p.v)),gmax:Math.max(...r.map(p=>sgn*p.g)),gmin:Math.min(...r.map(p=>sgn*p.g)),cover:S[S.length-1]/L,maxOff:Math.max(...O.map(Math.abs))};
+    lap.ok=lap.cover>0.97&&lap.maxOff<25;laps[id]=lap;if(lap.ok)valid.push(id);
+  }
+  // corners: speed minima on the master lap
+  const m=laps[best],vs=smooth(Array.from(m.v),6),prom=4,c=[];
+  const tp=[];let dir=0,last=0;
+  for(let i=1;i<n;i++){const d=vs[i]-vs[last];if(dir>=0&&vs[i]>vs[last]){last=i;dir=1;}else if(dir<=0&&vs[i]<vs[last]){last=i;dir=-1;}
+    else if(dir>0&&vs[last]-vs[i]>=prom){tp.push({i:last,k:'max'});last=i;dir=-1;}
+    else if(dir<0&&vs[i]-vs[last]>=prom){tp.push({i:last,k:'min'});last=i;dir=1;}}
+  const mins=tp.filter(q=>q.k==='min').map(q=>q.i),maxs=tp.filter(q=>q.k==='max').map(q=>q.i);
+  mins.forEach((ap,idx)=>{const a=idx===0?0:maxs.filter(q=>q<ap).pop()??0;const nextMin=mins[idx+1];const b=idx===mins.length-1?n-1:(maxs.find(q=>q>ap&&q<nextMin)??n-1);
+    let tw=0;for(let j=Math.max(1,ap-25);j<Math.min(n-1,ap+25);j++){const ax=m.x[j]-m.x[j-1],ay=m.y[j]-m.y[j-1],bx=m.x[j+1]-m.x[j],by=m.y[j+1]-m.y[j];tw+=Math.atan2(ax*by-ay*bx,ax*bx+ay*by);}
+    c.push({no:idx+1,a,b,ap,side:tw>0?'左':'右'});});
+  const ref=laps[best];
+  const metrics=(lap,co)=>{let mi=co.a;for(let i=co.a;i<=co.b;i++)if(lap.v[i]<lap.v[mi])mi=i;
+    // braking point: walk back from apex to where decel first exceeds 0.2 G
+    let pk=mi;for(let i=mi;i>=co.a;i--)if(lap.b[i]>lap.b[pk])pk=i;
+    let bp=null;if(lap.b[pk]>=0.2){bp=pk;while(bp>co.a&&lap.b[bp-1]>=0.2)bp--;}
+    let lean=0;for(let i=co.a;i<=co.b;i++)if(Math.abs(lap.lean[i])>lean)lean=Math.abs(lap.lean[i]);
+    const ex=Math.min(co.b,mi+25);
+    return {tIn:lap.t[co.ap]-lap.t[co.a],tOut:lap.t[co.b]-lap.t[co.ap],time:lap.t[co.b]-lap.t[co.a],minV:lap.v[mi],minS:mi,bp,peakB:lap.b[pk],exitV:lap.v[ex],entryV:lap.v[co.a],lean,off:lap.off[co.ap]};};
+  const cm={};for(const id of ids)cm[id]=c.map(co=>metrics(laps[id],co));
+  if(!valid.length)throw new Error('沒有可用的完整圈。');
+  const pool=sessions.length>1?sessions.map(s=>valid.filter(id=>owner[id]===s).reduce((a,b)=>a==null||dur[b]<dur[a]?b:a,null)).filter(x=>x!=null):valid;
+  c.forEach((co,i)=>{let bid=pool[0];for(const id of pool)if(cm[id][i].time<cm[bid][i].time)bid=id;co.bestLap=bid;co.bestT=cm[bid][i].time;
+    const ts=pool.map(id=>cm[id][i].time).sort((a,b)=>a-b);co.median=ts[ts.length>>1];co.spread=co.median-co.bestT;});
+  const theo=c.reduce((a,co)=>a+co.bestT,0);
+  // per-rider summary
+  const riders=sessions.map(s=>{const own=ids.filter(id=>owner[id]===s),ok=own.filter(id=>valid.includes(id));
+    if(!ok.length)throw new Error('「'+s.name+'」和其他資料對不上：路線差距過大，可能不是同一賽道或起終點線不同。');
+    const rb=ok.reduce((a,b)=>dur[b]<dur[a]?b:a);
+    const theo=c.reduce((a,co,i)=>a+Math.min(...ok.map(id=>cm[id][i].time)),0);
+    // best 50→70 km/h pull
+    let pull=null;for(const id of ok){const r=raw.by[id];for(let i=0;i<r.length;i++){if(i===0||r[i].v<50||r[i-1].v>=50)continue;let j=i,ok2=true;while(j<r.length&&r[j].v<70){if(r[j].v<48){ok2=false;break;}j++;}if(ok2&&j<r.length){const d=r[j].t-r[i].t;if(!pull||d<pull.d)pull={d,lap:id};}}}
+    return {s,ids:own,valid:ok,best:rb,theo,pull,vmax:Math.max(...own.map(i=>laps[i].vmax)),gBrake:Math.max(...own.map(i=>laps[i].gmax))};});
+  const sorted=[...ids].sort((a,b)=>dur[a]-dur[b]);
+  return {ids,valid,sorted,laps,best,L,n,grid,corners:c,cm,theo,riders,owner};
+}
+// explain one corner: compare slower lap B against faster lap A, return facts ordered by size
+function explain(A,B,minGap){ // A,B metrics
+  const out=[];
+  if(A.bp!=null&&B.bp!=null){const d=A.bp-B.bp;if(d>=4)out.push('晚 '+Math.round(d)+' 公尺才開始煞車');else if(d<=-4)out.push('早 '+Math.round(-d)+' 公尺開始煞車');}
+  const dm=A.minV-B.minV;if(Math.abs(dm)>=1.5)out.push('最低彎速'+(dm>0?'高 ':'低 ')+Math.abs(dm).toFixed(1)+' km/h');
+  const de=A.exitV-B.exitV;if(Math.abs(de)>=1.5)out.push('出彎速度'+(de>0?'高 ':'低 ')+Math.abs(de).toFixed(1)+' km/h');
+  const dl=A.lean-B.lean;if(Math.abs(dl)>=3)out.push('傾角'+(dl>0?'多 ':'少 ')+Math.abs(dl).toFixed(0)+'°');
+  return out;
+}
+
+
+// ---- page ----
+const $=i=>document.getElementById(i),esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const sg=(x,d=3)=>(x>=0?'+':'−')+Math.abs(x).toFixed(d);
+let R=null,A,B,cur=0,charts=[],sessions=[],uid=0,focusUid=0,grp='';
+const clip=(v,n)=>String(v==null?'':v).replace(/[\r\n,]+/g,' ').trim().slice(0,n);
+const inGrp=s=>!grp||String(s.cc)===grp;
+let pageNo=0;const PAGES=['總覽','重點彎','比較','每彎'];
+function go(n,dir){n=Math.max(0,Math.min(3,n));const d=dir==null?Math.sign(n-pageNo):dir;pageNo=n;
+  document.querySelectorAll('.page').forEach(p=>{const on=+p.dataset.page===n;p.hidden=!on;if(on){p.style.setProperty('--dx',(d*24)+'px');p.style.animation='none';void p.offsetWidth;p.style.animation=''}});
+  document.querySelectorAll('#tabs button').forEach(b=>{const on=+b.dataset.p===n;b.setAttribute('aria-selected',on);b.tabIndex=on?0:-1});
+  $('prev').hidden=n===0;$('next').hidden=n===3;if(n>0)$('prev').textContent='← '+PAGES[n-1];if(n<3)$('next').textContent=PAGES[n+1]+' →';$('pgN').textContent=(n+1)+' / 4';
+  if(n===2&&R){renderCharts();paintCur()}window.scrollTo(0,0)}
+function gotoCompare(){go(2);document.querySelector('.an').scrollIntoView({behavior:'auto'})}
+const multi=()=>sessions.length>1;
+const bestMode=()=>R.riders.length>1;
+const other=x=>(bestMode()?R.riders.map(r=>r.best).sort((a,b)=>R.laps[a].dur-R.laps[b].dur):R.sorted).find(i=>i!==x);
+const riderOf=id=>R.riders.find(r=>r.s===R.owner[id]);
+const lab=id=>(multi()?R.owner[id].name+' L':'Lap ')+(id%1000);
+const lab2=id=>(multi()?R.owner[id].name+' L':'L')+(id%1000);
+const focusR=()=>R.riders.find(r=>r.s.uid===focusUid)||R.riders[0];
+// re-run the analysis; on failure keep the previous state and report why
+function commit(next){const act=next.filter(inGrp),nr=analyze(act);sessions=next;R=nr;
+  if(!R.riders.some(r=>r.s.uid===focusUid))focusUid=R.riders[0].s.uid;
+  const fb=focusR().best,isB=i=>R.riders.some(r=>r.best===i);if(!R.laps[A]||(bestMode()&&!isB(A)))A=fb;if(!R.laps[B]||B===A||(bestMode()&&!isB(B)))B=other(A);}
+function centre(raw){let a=0,o=0,n=0;for(const l in raw.by)for(const p of raw.by[l]){a+=p.lat;o+=p.lon;n++}return n?[a/n,o/n]:null}
+function addFile(text,file){if(sessions.some(s=>s.text===text))throw new Error('「'+file+'」已經匯入過了。');
+  let raw;try{raw=parseRaceBox(text)}catch(x){throw new Error('「'+file+'」：'+x.message)}
+  if(sessions.length){const c0=centre(sessions[0].raw),c1=centre(raw);if(c0&&c1){const km=Math.hypot((c1[0]-c0[0])*110.574,(c1[1]-c0[1])*111.32*Math.cos(c0[0]*Math.PI/180));
+    if(km>3)throw new Error('「'+file+'」不是同一賽道（距離目前的賽道約 '+Math.round(km)+' 公里）。要看其他賽道，請先按「清空」。');}}
+  const m=raw.meta,s={uid:++uid,name:clip(m.Rider,24)||(sessions.length?'騎士 '+(sessions.length+1):'我'),bike:clip(m.Bike,32),cc:parseInt(m.Displacement)||'',text,raw};
+  const prev=grp;grp='';try{commit([...sessions,s])}catch(x){grp=prev;
+    if(/對不上/.test(x.message))throw new Error('「'+file+'」地點相同，但路線或起終點線不同，無法和目前的資料對齊。');
+    throw new Error('「'+file+'」：'+x.message)}
+  return s;}
+function resetAll(){sessions=[];R=null;A=B=undefined;grp='';focusUid=0;showErr('');showMsg('');$('main').hidden=true;$('empty').hidden=false;$('clr').hidden=true;go(0)}
+// de-identified share file: only the fastest aligned laps, no device id, no extra columns
+function shareText(r){const s=r.s,top=[...r.valid].sort((a,b)=>R.laps[a].dur-R.laps[b].dur).slice(0,3).sort((a,b)=>a-b),nos=top.map(i=>i%1000),m=s.raw.meta;
+  const out=['Format,RaceBox CSV','Date UTC,'+clip(m['Date UTC'],40),'Track,'+clip(m.Track,60),'Rider,'+s.name,'Bike,'+s.bike,'Displacement,'+s.cc,'Laps,'+nos.length];
+  top.forEach(i=>out.push('Lap '+(i%1000)+', '+R.laps[i].dur.toFixed(3)));out.push('','Time,Latitude,Longitude,Speed,GForceX,Lap,LeanAngle');
+  for(const n of nos)for(const p of s.raw.by[n])out.push([new Date(p.t*1000).toISOString(),p.lat.toFixed(7),p.lon.toFixed(7),p.v.toFixed(2),p.g.toFixed(3),n,p.lean.toFixed(1)].join(','));
+  return {text:out.join('\n'),count:nos.length};}
+async function exportRider(r){const {text,count}=shareText(r),fn=('racebox-'+r.s.name+'-'+(r.s.raw.meta.Track||'track')+'.csv').replace(/[\\/:*?"<>|\s]+/g,'_');
+  const done=()=>showMsg('已產生分享檔：'+r.s.name+' 最快 '+count+' 圈，已移除裝置序號。');
+  try{const f=new File([text],fn,{type:'text/csv'});
+    if(matchMedia('(pointer:coarse)').matches&&navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:fn});done();return}catch(x){if(x&&x.name==='AbortError')return}}
+    const dl=window.claude?await claude.use('downloads'):null;
+    if(dl){try{await dl.save({filename:fn,data:text});done()}catch(x){if(!x||x.code!=='declined')showErr('無法儲存分享檔，請再試一次。')}return}
+    const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=fn;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000);done();
+  }catch(x){showErr('無法產生分享檔：'+x.message)}}
+function focusBiggest(){let bi=0,bd=-1;R.corners.forEach((c,i)=>{const d=Math.abs(R.cm[B][i].time-R.cm[A][i].time);if(d>bd){bd=d;bi=i}});setCur(R.corners[bi].ap)}
+function renderAll(){renderRiders();renderHead();renderPick();renderCompare()}
+function renderRiders(){const fr=focusR(),gb=R.laps[R.best].dur;$('main').hidden=false;$('empty').hidden=true;$('clr').hidden=false;
+  $('rH').textContent=multi()?'選一位當分析對象，下方的重點與統計都會以他為準。暱稱、車款和排氣量可直接修改，也會寫進分享檔。':'填好暱稱和車款後按「匯出分享檔」傳給車友，也可以加入車友傳來的檔案。';
+  const ccs=[...new Set(sessions.map(s=>s.cc).filter(Boolean))].sort((a,b)=>a-b);$('grpW').hidden=ccs.length<2&&!grp;
+  $('grp').innerHTML='<option value="">全部車輛</option>'+ccs.map(c=>`<option value="${c}">${c}cc</option>`).join('');$('grp').value=grp;
+  $('riders').innerHTML=sessions.map(s=>{const u=s.uid,r=R.riders.find(q=>q.s===s),on=r===fr;
+    const rad=multi()?`<label><input type="radio" name="fr" value="${u}" ${on?'checked':''} ${r?'':'disabled'} aria-label="以 ${esc(s.name)} 為分析對象"></label>`:'<span></span>';
+    const st=r?`<div><b>${R.laps[r.best].dur.toFixed(3)}</b>最快圈 L${r.best%1000}</div><div><b>${multi()?'+'+(R.laps[r.best].dur-gb).toFixed(3):r.theo.toFixed(3)}</b>${multi()?'與本組最快差':'理論最佳圈'}</div><div><b>${r.ids.length}</b>圈</div>`:'<div>不在此分組</div><div></div><div></div>';
+    return `<div class="rd ${r?'':'off'}">${rad}<input type="text" class="nm" maxlength="24" value="${esc(s.name)}" data-u="${u}" aria-label="暱稱" placeholder="暱稱"><input type="text" class="bk" maxlength="32" value="${esc(s.bike)}" data-b="${u}" aria-label="車款" placeholder="車款"><input type="number" class="cc" min="0" max="2500" inputmode="numeric" value="${s.cc}" data-c="${u}" aria-label="排氣量 cc" placeholder="cc"><span class="rs">${st}</span>${r?`<button class="link" data-s="${u}">匯出分享檔</button>`:'<span></span>'}${multi()&&r&&!on?`<button class="link" data-v="${u}">比最快圈</button>`:'<span></span>'}<button class="x" data-x="${u}" aria-label="移除 ${esc(s.name)}" title="移除">×</button></div>`}).join('');
+  const S=u=>sessions.find(q=>q.uid===+u);
+  document.querySelectorAll('.rd input[type=radio]').forEach(x=>x.onchange=()=>{focusUid=+x.value;const b=focusR().best;if(B===b)B=A;A=b;if(A===B)B=other(A);renderAll();focusBiggest()});
+  document.querySelectorAll('.rd .nm').forEach(x=>x.onchange=()=>{const n=clip(x.value,24);if(n)S(x.dataset.u).name=n;renderAll()});
+  document.querySelectorAll('.rd .bk').forEach(x=>x.onchange=()=>{S(x.dataset.b).bike=clip(x.value,32);renderCH()});
+  document.querySelectorAll('.rd .cc').forEach(x=>x.onchange=()=>{S(x.dataset.c).cc=parseInt(x.value)||'';setGroup(grp&&sessions.some(q=>String(q.cc)===grp)?grp:'')});
+  document.querySelectorAll('.rd [data-s]').forEach(x=>x.onclick=()=>exportRider(R.riders.find(r=>r.s.uid===+x.dataset.s)));
+  document.querySelectorAll('.rd [data-v]').forEach(x=>x.onclick=()=>{A=focusR().best;B=R.riders.find(r=>r.s.uid===+x.dataset.v).best;renderPick();renderCompare();focusBiggest();gotoCompare()});
+  document.querySelectorAll('.rd [data-x]').forEach(x=>x.onclick=()=>{const nx=sessions.filter(q=>q.uid!==+x.dataset.x);if(!nx.length){resetAll();return}
+    const pg=grp;if(grp&&!nx.some(q=>String(q.cc)===grp))grp='';try{commit(nx);showErr('');renderAll();focusBiggest()}catch(e){grp=pg;showErr(e.message)}});}
+// apply a group filter; keep the current view if that group has too few laps to compare
+function setGroup(g){const pg=grp;grp=g;try{commit(sessions);if(g!==pg){A=focusR().best;B=other(A)}showErr('');renderAll();focusBiggest()}catch(x){grp=pg;showErr(g?g+'cc 這組的圈數不足，無法比較。':x.message);try{commit(sessions)}catch(_){}renderAll()}}
+function renderCH(){const a=R.owner[A],b=R.owner[B],el=$('cH'),d=a!==b&&a.cc&&b.cc&&a.cc!==b.cc;el.hidden=!d;if(d)el.textContent=`這兩圈排氣量不同（${a.name} ${a.cc}cc、${b.name} ${b.cc}cc），直線差距多半來自動力，看煞車和彎中比較有參考價值。`}
+function renderHead(){const fr=focusR(),m=fr.s.raw.meta,d=m['Date UTC']?new Date(m['Date UTC']):null,rb=fr.best,b=R.laps[rb];
+  R.corners.forEach((c,i)=>{c.gain=R.cm[rb][i].time-c.bestT});
+  const st=[[b.dur.toFixed(3),'最快圈',lab(rb)],[fr.theo.toFixed(3),'理論最佳圈','每彎最快時間相加'],[fr.vmax.toFixed(1),'極速 km/h','最大煞車 '+fr.gBrake.toFixed(2)+' G'],[fr.pull?fr.pull.d.toFixed(2)+' s':'—','50→70 km/h 最快',fr.pull?lab(fr.pull.lap):'']];
+  $('stats').innerHTML=st.map(s=>`<div class="stat"><b>${s[0]}</b><span>${s[1]}</span><small>${esc(s[2])}</small></div>`).join('');
+  $('fT').textContent=(multi()?'最值得練的彎：'+fr.s.name+' 的最快圈和'+(grp?'本組':'全場')+'每彎最快差 ':'最值得練的彎：最快圈還能再快 ')+(b.dur-R.theo).toFixed(3)+' 秒';
+  $('fH').textContent=bestMode()?'只看每位騎士的最快圈：取每彎最快的騎士，與這位騎士相比，差距最大的彎排在前面。':'把每彎在所有圈中的最快時間，與最快圈相比，差距最大的彎排在前面。';
+  const top=[...R.corners].filter(c=>c.gain>=.01).sort((x,y)=>y.gain-x.gain).slice(0,3);
+  $('focus').innerHTML=top.map(c=>{const i=c.no-1,m0=R.cm[rb][i],m1=R.cm[c.bestLap][i],f=explain(m1,m0).filter(x=>!/出彎速度低/.test(x)),a=m0.tIn-m1.tIn,o=m0.tOut-m1.tOut;
+    return `<li><div class="tag">T${c.no}<small>${c.side}彎</small></div><div class="gain">${c.gain.toFixed(3)}<small>秒</small></div><p>${esc(bestMode()?R.owner[c.bestLap].name:lab(c.bestLap))} ${a>=o?'主要快在入彎段':'主要快在出彎段'}（入彎 ${sg(-a,2)}、出彎 ${sg(-o,2)} 秒，負值表示較快）${f.length?'。'+f.join('、'):''}。</p><button class="link" data-a="${rb}" data-b="${c.bestLap}" data-ap="${c.ap}">看這彎</button></li>`}).join('')||'<li><p>各彎的最快時間幾乎都來自最快圈。</p></li>';
+  document.querySelectorAll('.focus .link').forEach(x=>x.onclick=()=>{A=+x.dataset.a;B=+x.dataset.b;renderPick();renderCompare();setCur(+x.dataset.ap);gotoCompare()});
+}
+function renderPick(){
+  $('pT').textContent=bestMode()?'比較最快圈':'選兩圈比較';$('pA').textContent=bestMode()?'基準騎士':'基準圈';$('pB').textContent=bestMode()?'比較騎士':'比較圈';
+  if(bestMode()){const rs=[...R.riders].sort((a,b)=>R.laps[a.best].dur-R.laps[b.best].dur),gb=R.laps[rs[0].best].dur,o=rs.map(r=>`<option value="${r.best}">${esc(r.s.name)}　${R.laps[r.best].dur.toFixed(3)}</option>`).join('');
+    $('selA').innerHTML=o;$('selB').innerHTML=o;$('selA').value=A;$('selB').value=B;
+    $('laps').innerHTML=`<div class="laps">${rs.map(r=>{const id=r.best,d=R.laps[id].dur;return `<button class="lap ${id===A?'isA':''} ${id===B?'isB':''}" data-id="${id}" title="設為比較騎士"><i>${esc(r.s.name)}</i><b>${d.toFixed(3)}</b><span>L${id%1000}${d>gb?`，+${(d-gb).toFixed(3)}`:'，最快'}</span></button>`}).join('')}</div>`;
+  }else{const r=R.riders[0],o=r.ids.map(i=>`<option value="${i}">Lap ${i%1000}　${R.laps[i].dur.toFixed(3)}</option>`).join('');$('selA').innerHTML=o;$('selB').innerHTML=o;$('selA').value=A;$('selB').value=B;
+    $('laps').innerHTML=`<div class="laps">${r.ids.map(id=>{const l=R.laps[id];let wi=0,wd=-9;R.corners.forEach((c,i)=>{const d=R.cm[id][i].time-R.cm[r.best][i].time;if(d>wd){wd=d;wi=i}});
+      const note=id===r.best?'最快圈':`+${(l.dur-R.laps[r.best].dur).toFixed(3)}，T${wi+1} 差最多 ${sg(wd,2)}`;
+      return `<button class="lap ${id===A?'isA':''} ${id===B?'isB':''}" data-id="${id}" title="設為比較圈"><i>L${id%1000}</i><b>${l.dur.toFixed(3)}</b><span>${note}</span></button>`}).join('')}</div>`;}
+  document.querySelectorAll('.lap').forEach(x=>x.onclick=()=>{const id=+x.dataset.id;if(id===A)return;B=id;renderPick();renderCompare()});}
+$('selA').onchange=e=>{A=+e.target.value;if(A===B)B=other(A);renderPick();renderCompare()};
+$('selB').onchange=e=>{B=+e.target.value;if(A===B)A=other(B);renderPick();renderCompare()};
+function deltaArr(){const a=R.laps[A].t,b=R.laps[B].t;return Float64Array.from(a,(x,i)=>b[i]-x)}
+function renderCompare(){$('lgA').textContent=`基準 ${lab(A)} 較快`;$('lgB').textContent=`比較 ${lab(B)} 較快`;renderCH();renderMap();renderCharts();renderTable();paintCur()}
+function renderMap(){const m=R.laps[R.best],n=R.n,d=deltaArr(),xs=m.x,ys=m.y;let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;for(let i=0;i<n;i++){x0=Math.min(x0,xs[i]);x1=Math.max(x1,xs[i]);y0=Math.min(y0,ys[i]);y1=Math.max(y1,ys[i])}
+  const pad=14,V=`${x0-pad} ${-y1-pad} ${x1-x0+2*pad} ${y1-y0+2*pad}`,el=$('map');el.setAttribute('viewBox',V);let h='';
+  h+=`<polyline points="${Array.from(xs,(x,i)=>x.toFixed(1)+','+(-ys[i]).toFixed(1)).join(' ')}" fill="none" stroke="var(--rail)" stroke-width="3.4" stroke-linejoin="round"/>`;
+  const w=8,sat=.004;for(let i=0;i<n-3;i+=3){const lo=Math.max(0,i-w),hi=Math.min(n-1,i+w+3),r=(d[hi]-d[lo])/(hi-lo),p=Math.min(100,Math.round(Math.abs(r)/sat*100));const c=r>0?'--a':'--b';if(p<15)continue;
+    h+=`<line x1="${xs[i].toFixed(1)}" y1="${(-ys[i]).toFixed(1)}" x2="${xs[i+3].toFixed(1)}" y2="${(-ys[i+3]).toFixed(1)}" stroke-width="3.4" stroke-linecap="round" style="stroke:color-mix(in oklab,var(${c}) ${p}%,var(--rail))"/>`}
+  // start line + corner labels pushed outward from track centre
+  const cx=(x0+x1)/2,cy=(y0+y1)/2;
+  h+=`<circle cx="${xs[0]}" cy="${-ys[0]}" r="3.6" fill="var(--fg)"/><circle cx="${xs[0]}" cy="${-ys[0]}" r="1.6" fill="var(--panel)"/>`;
+  R.corners.forEach(c=>{const x=xs[c.ap],y=ys[c.ap],k=Math.hypot(x-cx,y-cy)||1,lx=x+(x-cx)/k*8,ly=y+(y-cy)/k*8;h+=`<text x="${lx.toFixed(1)}" y="${(-ly+2).toFixed(1)}" text-anchor="middle" style="font:700 7px var(--num);fill:var(--fg);paint-order:stroke;stroke:var(--panel);stroke-width:2px">T${c.no}</text>`});
+  h+=`<circle id="mc" r="3.4" fill="var(--fg)" stroke="var(--panel)" stroke-width="1.4"/>`;el.innerHTML=h;
+  const pick=e=>{const b=el.getBoundingClientRect(),vb=el.viewBox.baseVal,sc=Math.max(vb.width/b.width,vb.height/b.height),ox=vb.x+vb.width/2+(e.clientX-b.left-b.width/2)*sc,oy=-(vb.y+vb.height/2+(e.clientY-b.top-b.height/2)*sc);let bi=cur,bd=1e9;for(let i=0;i<n;i+=2){const q=(xs[i]-ox)**2+(ys[i]-oy)**2;if(q<bd){bd=q;bi=i}}setCur(bi)};
+  el.onpointermove=pick;el.onpointerdown=pick;}
+function renderCharts(){charts=[];const a=R.laps[A],b=R.laps[B],d=deltaArr(),last=d[d.length-1];
+  $('dT').innerHTML=`累積時間差 秒 · 終點 <b>${sg(last)}</b>（往上表示比較圈落後）`;
+  const ext=(arrs,p)=>{let lo=1e9,hi=-1e9;for(const r of arrs)for(const v of r){if(v<lo)lo=v;if(v>hi)hi=v}const m=(hi-lo)*p||.1;return[lo-m,hi+m]};
+  chart('cV',200,[{r:a.v,c:'--a'},{r:b.v,c:'--b'}],ext([a.v,b.v],.04),{labels:true});
+  const de=ext([d],.1);de[0]=Math.min(de[0],-.02);de[1]=Math.max(de[1],.02);chart('cD',130,[{r:d,c:'--fg'}],de,{zero:true,area:true});
+  chart('cB',120,[{r:a.b,c:'--a'},{r:b.b,c:'--b'}],ext([a.b,b.b],.05),{zero:true});
+  chart('cL',120,[{r:a.lean,c:'--a'},{r:b.lean,c:'--b'}],[-60,60],{zero:true,axis:true});
+}
+function ticks(lo,hi,c){const st=(hi-lo)/c,p=10**Math.floor(Math.log10(st)),q=st/p,s=(q<1.5?1:q<3?2:q<7?5:10)*p,o=[];for(let v=Math.ceil(lo/s)*s;v<=hi+1e-9;v+=s)o.push(+v.toFixed(6));return o}
+function chart(id,h,series,[lo,hi],opt){const el=$(id),w=Math.max(280,el.parentElement.clientWidth),ml=38,mr=14,mt=opt.labels?20:4,mb=opt.axis?22:4,n=R.n;el.setAttribute('viewBox',`0 0 ${w} ${h}`);el.setAttribute('height',h);
+  const X=i=>ml+i/(n-1)*(w-ml-mr),Y=v=>mt+(hi-v)/(hi-lo)*(h-mt-mb);let s='';
+  R.corners.forEach((c,i)=>{if(i%2===0)s+=`<rect class="bd" x="${X(c.a)}" y="${mt}" width="${X(c.b)-X(c.a)}" height="${h-mt-mb}"/>`;if(opt.labels)s+=`<text x="${X(c.ap)}" y="14" text-anchor="middle" style="fill:var(--fg);font-weight:600">T${c.no}</text>`});
+  for(const t of ticks(lo,hi,3)){s+=`<line class="gr" x1="${ml}" x2="${w-mr}" y1="${Y(t)}" y2="${Y(t)}"/><text x="${ml-5}" y="${Y(t)+4}" text-anchor="end">${+t.toFixed(2)}</text>`}
+  if(opt.axis)for(const t of ticks(0,R.L,6))s+=`<text x="${X(t)}" y="${h-5}" text-anchor="middle">${t}</text>`;
+  if(opt.zero)s+=`<line x1="${ml}" x2="${w-mr}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--muted)"/>`;
+  const st=Math.max(1,Math.round(n/w));
+  const pts=(r,f=x=>x)=>{let o='';for(let i=0;i<n;i+=st)o+=X(i).toFixed(1)+','+Y(f(r[i])).toFixed(1)+' ';return o};
+  if(opt.area){const r=series[0].r,z=Y(0).toFixed(1),L=X(0).toFixed(1),E=X(n-1).toFixed(1);
+    s+=`<polygon points="${L},${z} ${pts(r,v=>Math.max(v,0))}${E},${z}" style="fill:color-mix(in srgb,var(--a) 28%,transparent)"/><polygon points="${L},${z} ${pts(r,v=>Math.min(v,0))}${E},${z}" style="fill:color-mix(in srgb,var(--b) 28%,transparent)"/>`}
+  for(const q of series)s+=`<polyline points="${pts(q.r)}" fill="none" stroke="var(${q.c})" stroke-width="${series.length>1?1.8:2}" stroke-linejoin="round"/>`;
+  s+=`<line class="ch" y1="${mt}" y2="${h-mb}"/>`;el.innerHTML=s;el.setAttribute('role','img');el.setAttribute('aria-label','沿賽道距離的數據曲線，數字見每彎比較表');
+  const pick=e=>{const b=el.getBoundingClientRect(),sx=(e.clientX-b.left)*w/b.width;setCur(Math.round(Math.max(0,Math.min(n-1,(sx-ml)/(w-ml-mr)*(n-1)))))};el.onpointermove=pick;el.onpointerdown=pick;
+  charts.push({el,X});}
+function setCur(i){cur=i;paintCur()}
+function paintCur(){if(!R)return;const a=R.laps[A],b=R.laps[B],m=R.laps[R.best],i=Math.min(cur,R.n-1);const c=R.corners.find(q=>i>=q.a&&i<=q.b);
+  const mc=$('mc');if(mc){mc.setAttribute('cx',m.x[i]);mc.setAttribute('cy',-m.y[i])}
+  for(const q of charts){const l=q.el.querySelector('.ch');l.setAttribute('x1',q.X(i));l.setAttribute('x2',q.X(i))}
+  const d=b.t[i]-a.t[i];
+  $('read').innerHTML=[[`${Math.round(R.grid[i])} m`,c?`位置 · T${c.no}`:'位置'],[a.v[i].toFixed(1),`${esc(lab2(A))} km/h`],[b.v[i].toFixed(1),`${esc(lab2(B))} km/h`],[sg(d),'時間差 秒'],[`${Math.abs(a.lean[i]).toFixed(0)}° / ${Math.abs(b.lean[i]).toFixed(0)}°`,'傾角']].map(x=>`<div><b>${x[0]}</b>${x[1]}</div>`).join('');
+  document.querySelectorAll('#tb tr').forEach((r,k)=>r.classList.toggle('on',!!c&&c.no===k+1));}
+function renderTable(){const rb=focusR().best;$('tH').textContent=`左邊是基準 ${lab(A)}，右邊是比較 ${lab(B)}。時間差為正，表示比較圈較慢。點一列可到比較頁看該彎。`;
+  $('th').innerHTML=`<tr><th>彎</th><th>時間差 秒</th><th>煞車點差</th><th>最低速 km/h</th><th>出彎速 km/h</th><th>最大傾角</th><th>全場最快</th><th>${multi()?esc(focusR().s.name)+' ':''}最快圈可省 秒</th></tr>`;
+  const rows=R.corners.map((c,i)=>{const p=R.cm[A][i],q=R.cm[B][i],dt=q.time-p.time;let bd='—';if(p.bp!=null&&q.bp!=null){const k=q.bp-p.bp;bd=Math.abs(k)<1?'相同':(k>0?'晚 ':'早 ')+Math.abs(k)+' m'}
+    return `<tr tabindex="0" data-ap="${c.ap}"><td>T${c.no} ${c.side}</td><td class="w">${sg(dt)}</td><td>${bd}</td><td>${p.minV.toFixed(1)} <em>/</em> ${q.minV.toFixed(1)}</td><td>${p.exitV.toFixed(1)} <em>/</em> ${q.exitV.toFixed(1)}</td><td>${p.lean.toFixed(0)}° <em>/</em> ${q.lean.toFixed(0)}°</td><td>${esc(lab2(c.bestLap))} ${c.bestT.toFixed(3)}</td><td>${c.gain.toFixed(3)}</td></tr>`});
+  const tot=R.laps[B].dur-R.laps[A].dur;
+  $('tb').innerHTML=rows.join('')+`<tr data-ap="-1"><td>整圈</td><td class="w">${sg(tot)}</td><td></td><td></td><td></td><td></td><td>${R.theo.toFixed(3)}</td><td>${(R.laps[rb].dur-R.theo).toFixed(3)}</td></tr>`;
+  document.querySelectorAll('#tb tr').forEach(r=>{const jump=()=>{const k=+r.dataset.ap;if(k>=0){setCur(k);gotoCompare()}};r.onclick=jump;r.onkeydown=e=>{if(e.key==='Enter')jump()}});}
+function showErr(m){$('err').textContent=m;$('err').hidden=!m}
+function showMsg(m){$('msg').textContent=m;$('msg').hidden=!m}
+const readText=f=>new Promise((ok,no)=>{const r=new FileReader();r.onload=()=>{const u=new Uint8Array(r.result);let e='utf-8';if(u[0]===0xFF&&u[1]===0xFE)e='utf-16le';else if(u[0]===0xFE&&u[1]===0xFF)e='utf-16be';else if(u[1]===0&&u[3]===0)e='utf-16le';ok(new TextDecoder(e).decode(u))};r.onerror=()=>no(new Error('無法讀取「'+f.name+'」，請再試一次。雲端檔案可先下載到手機再選。'));r.readAsArrayBuffer(f)});
+async function addFiles(fs){if(!fs.length)return;const errs=[];let last=null,cnt=0;
+  showErr('');showMsg('正在分析 '+fs.length+' 個檔案…');await new Promise(r=>setTimeout(r,30));
+  for(const f of fs){try{const t=await readText(f);last=addFile(t,f.name);cnt++}catch(x){errs.push(x&&x.message||('無法讀取「'+f.name+'」。'))}}
+  try{if(last){A=focusR().best;B=R.riders.find(r=>r.s===last).best;if(A===B)B=other(A);go(0);renderAll();focusBiggest();
+    const inp=document.querySelector(`.rd input[data-u="${last.uid}"]`);if(inp){inp.focus({preventScroll:true});inp.select()}}}catch(x){errs.push('畫面更新失敗：'+x.message)}
+  showErr(errs.join(' '));showMsg(cnt?'已加入 '+cnt+' 位騎士，可以直接改名字和車款。':'');
+  if(errs.length)$('err').scrollIntoView({block:'center'});}
+$('file').onclick=e=>{e.target.value=''};
+$('file').onchange=e=>{addFiles([...e.target.files])};
+document.addEventListener('dragover',e=>e.preventDefault());
+document.addEventListener('drop',e=>{e.preventDefault();addFiles([...e.dataTransfer.files])});
+let rz;new ResizeObserver(()=>{clearTimeout(rz);rz=setTimeout(()=>{if(R){renderCharts();paintCur()}},120)}).observe(document.querySelector('.chart'));
+$('clr').onclick=resetAll;
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>go(+b.dataset.p));
+$('tabs').onkeydown=e=>{const k=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(!k)return;e.preventDefault();go(pageNo+k);$('tabs').querySelector('[aria-selected=true]').focus()};
+$('prev').onclick=()=>go(pageNo-1);$('next').onclick=()=>go(pageNo+1);
+let tx=null,ty=0;const noSwipe='svg,.tw,input,select,button,.laps';
+$('main').addEventListener('touchstart',e=>{tx=e.touches.length===1&&!e.target.closest(noSwipe)?e.touches[0].clientX:null;ty=e.touches[0].clientY},{passive:true});
+$('main').addEventListener('touchend',e=>{if(tx==null)return;const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;tx=null;if(Math.abs(dx)>70&&Math.abs(dx)>2*Math.abs(dy))go(pageNo+(dx<0?1:-1))},{passive:true});
+go(0);$('grp').onchange=e=>setGroup(e.target.value);
+</script>
+
+</body></html>
