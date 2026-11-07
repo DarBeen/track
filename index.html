@@ -79,6 +79,7 @@ th .ab{display:block;margin-top:3px;color:var(--fg);font-weight:500;font-size:15
 .sel .face:after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:translateY(-3px) rotate(45deg);flex:none}
 .sel:focus-within .face{outline:2px solid var(--a);outline-offset:2px}
 .pick label{flex:1 1 auto}
+.top .hd{flex:1 1 260px;min-width:0}.by{white-space:nowrap}
 .msg{margin:0;font-weight:500}
 .an{scroll-margin-top:56px}.fb{vertical-align:middle}#clr{vertical-align:middle}
 #main{display:grid;gap:20px}#main[hidden]{display:none}#main>*{min-width:0}
@@ -109,10 +110,10 @@ th .ab{display:block;margin-top:3px;color:var(--fg);font-weight:500;font-size:15
 .focus li{grid-template-columns:64px 88px minmax(0,1fr)}.focus p{grid-column:1/4}.focus .link{grid-column:3;grid-row:1;justify-self:end}}
 </style>
 <div class="wrap">
-<header class="top"><div><h1>RaceBox 賽道分析器</h1><p class="sub" id="meta">KYC Track School</p></div>
+<header class="top"><div class="hd"><h1>RaceBox 賽道分析器</h1><p class="sub" id="meta">KYC Track School</p></div>
 <div><button class="link" id="clr" hidden style="margin-right:8px">清空</button><span class="fb"><span class="btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V4M7 9l5-5 5 5M5 20h14"/></svg><span class="l1">載入 RaceBox CSV</span><span class="l2">載入另一個</span></span><input id="file" type="file" multiple aria-label="載入 RaceBox CSV"></span></div></header>
 <p class="err" id="err" role="alert" hidden></p><p class="msg" id="msg" role="status" hidden></p>
-<section id="empty"><h2 style="font-size:22px;margin-bottom:12px">把 RaceBox 資料變成逐彎比較</h2><ol class="steps"><li><b>1 匯入</b><p>從 RaceBox 網站下載賽道紀錄的 CSV，用「載入 RaceBox CSV」按鈕選檔；電腦上也能拖進頁面。</p></li><li><b>2 分析</b><p>自動切彎，找出每彎最值得練的地方，也能比較任兩圈。</p></li><li><b>3 資料比對</b><p>按「檔案分享」把最快幾圈傳給車友，對方載入後就能逐彎比較。</p></li></ol><p class="hint" style="margin-top:12px;max-width:75ch">檔案只在你的瀏覽器裡處理，不會上傳。</p></section>
+<section id="empty"><h2 style="font-size:22px;margin-bottom:12px">把 RaceBox 資料變成逐彎比較</h2><ol class="steps"><li><b>1 匯入</b><p>從 RaceBox 網站下載賽道紀錄的 CSV，用「載入 RaceBox CSV」按鈕選檔；電腦上也能拖進頁面。</p></li><li><b>2 分析</b><p>自動切彎，找出每彎最值得練的地方，也能比較任兩圈。</p></li><li><b>3 資料比對</b><p>按「檔案分享」把最快幾圈傳給車友，對方載入後就能逐彎比較。</p></li></ol><p class="hint" style="margin-top:12px;max-width:none;display:flex;justify-content:space-between;gap:12px"><span>檔案只在你的瀏覽器裡處理，不會上傳。</span><span class="by">大彬</span></p></section>
 <div id="main" hidden>
 <nav class="tabs" id="tabs" role="tablist" aria-label="頁面"><button role="tab" data-p="0">總覽</button><button role="tab" data-p="1">重點彎</button><button role="tab" data-p="2">比較</button><button role="tab" data-p="3">每彎</button></nav>
 <div class="page" data-page="0"><section><h2>騎士</h2><p class="hint" id="rH"></p><div class="grp" id="grpW" hidden><label for="grp">車輛分組</label><select id="grp"></select></div><div id="riders"></div><p class="hint" style="margin:10px 0 0">分享檔只含最快 3 圈和你填的資料，已移除裝置序號，但仍有日期時間和賽道 GPS 軌跡，請傳給信任的人。</p></section>
