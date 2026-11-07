@@ -343,8 +343,9 @@ function renderMap(){const m=R.laps[R.best],n=R.n,d=deltaArr(),xs=m.x,ys=m.y;let
   h+=`<circle cx="${xs[0]}" cy="${-ys[0]}" r="3.6" fill="var(--fg)"/><circle cx="${xs[0]}" cy="${-ys[0]}" r="1.6" fill="var(--panel)"/>`;
   R.corners.forEach(c=>{const x=xs[c.ap],y=ys[c.ap],k=Math.hypot(x-cx,y-cy)||1,lx=x+(x-cx)/k*8,ly=y+(y-cy)/k*8;h+=`<text x="${lx.toFixed(1)}" y="${(-ly+2).toFixed(1)}" text-anchor="middle" style="font:700 7px var(--num);fill:var(--fg);paint-order:stroke;stroke:var(--panel);stroke-width:2px">T${c.no}</text>`});
   h+=`<circle id="mc" r="3.4" fill="var(--fg)" stroke="var(--panel)" stroke-width="1.4"/>`;el.innerHTML=h;
-  const pick=e=>{const b=el.getBoundingClientRect(),vb=el.viewBox.baseVal,sc=Math.max(vb.width/b.width,vb.height/b.height),ox=vb.x+vb.width/2+(e.clientX-b.left-b.width/2)*sc,oy=-(vb.y+vb.height/2+(e.clientY-b.top-b.height/2)*sc);let bi=cur,bd=1e9;for(let i=0;i<n;i+=2){const q=(xs[i]-ox)**2+(ys[i]-oy)**2;if(q<bd){bd=q;bi=i}}setCur(bi)};
-  el.onpointermove=pick;el.onpointerdown=pick;}
+  const pick=e=>{const b=el.getBoundingClientRect(),vb=el.viewBox.baseVal,sc=Math.max(vb.width/b.width,vb.height/b.height),ox=vb.x+vb.width/2+(e.clientX-b.left-b.width/2)*sc,oy=-(vb.y+vb.height/2+(e.clientY-b.top-b.height/2)*sc);let bi=cur,bd=1e9;for(let i=0;i<n;i+=2){const q=(xs[i]-ox)**2+(ys[i]-oy)**2;if(q<bd){bd=q;bi=i}}const r=(e.pointerType==='mouse'?14:24)*sc;if(bd>r*r)return;setCur(bi)};
+  el.onpointermove=pick;el.onpointerdown=pick;
+  el.style.cursor='default';el.onmousemove=e=>{};}
 function renderCharts(){charts=[];const a=R.laps[A],b=R.laps[B],d=deltaArr(),last=d[d.length-1];
   $('dT').innerHTML=`累積時間差 秒 · 終點 <b>${sg(last)}</b>（往上表示比較圈落後）`;
   const ext=(arrs,p)=>{let lo=1e9,hi=-1e9;for(const r of arrs)for(const v of r){if(v<lo)lo=v;if(v>hi)hi=v}const m=(hi-lo)*p||.1;return[lo-m,hi+m]};
