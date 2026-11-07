@@ -53,7 +53,7 @@ select{font:500 18px var(--txt);padding:7px 8px;border:1px solid var(--rule);bor
 .lg{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:15px;color:var(--muted);margin-top:6px}
 .lg span{display:flex;align-items:center;gap:6px}
 #map{display:block;width:100%;max-height:480px;touch-action:pan-y;cursor:crosshair}
-.read{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:8px;padding:0 0 10px;border-bottom:1px solid var(--rule);margin-bottom:6px}
+.read{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:0 0 10px;border-bottom:1px solid var(--rule);margin-bottom:6px}
 .read div{min-width:0;font-size:15px;color:var(--muted)}.read b{display:block;font:600 22px/1.15 var(--num);color:var(--fg);font-variant-numeric:tabular-nums;white-space:nowrap}
 .chart h3{font-size:16px;font-weight:500;margin:12px 0 0;color:var(--muted)}.chart h3 b{color:var(--fg);font-weight:700}
 .chart svg{display:block;width:100%;touch-action:pan-y;cursor:crosshair}
@@ -71,6 +71,14 @@ td em{font-style:normal;color:var(--muted)}.w{font-weight:700}
 .fb{position:relative;display:inline-block;overflow:hidden;border-radius:3px}.fb:focus-within{outline:2px solid var(--a);outline-offset:2px}.fb input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;font-size:60px}
 input::placeholder{color:#b5b5b5;opacity:1}
 .link .ic{width:20px;height:20px;flex:none;color:var(--a)}.link[data-s]{display:inline-flex;align-items:center;gap:8px;border-color:var(--a)}
+th .ab{display:block;margin-top:3px;color:var(--fg);font-weight:500;font-size:15px}
+.sel{position:relative;display:inline-block;min-width:min(300px,100%)}
+.sel select{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;font-size:18px}
+.sel .face{display:flex;align-items:center;gap:12px;box-sizing:border-box;min-height:48px;padding:8px 12px;border:1px solid var(--rule);border-radius:3px;background:var(--panel);color:var(--fg);font:500 18px var(--txt);pointer-events:none}
+.sel .face b{margin-left:auto;font-weight:600;font-variant-numeric:tabular-nums}
+.sel .face:after{content:"";width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:translateY(-3px) rotate(45deg);flex:none}
+.sel:focus-within .face{outline:2px solid var(--a);outline-offset:2px}
+.pick label{flex:1 1 auto}
 .msg{margin:0;font-weight:500}
 .an{scroll-margin-top:56px}.fb{vertical-align:middle}#clr{vertical-align:middle}
 #main{display:grid;gap:20px}#main[hidden]{display:none}#main>*{min-width:0}
@@ -111,7 +119,7 @@ input::placeholder{color:#b5b5b5;opacity:1}
 <section class="stats" id="stats"></section></div>
 <div class="page" data-page="1" hidden><section><h2 id="fT"></h2><p class="hint" id="fH"></p><ol class="focus" id="focus"></ol></section></div>
 <div class="page" data-page="2" hidden><section><h2 id="pT">選兩圈比較</h2>
-<div class="pick"><label><i class="sw" style="background:var(--a)"></i><span id="pA">基準圈</span> <select id="selA"></select></label><label><i class="sw" style="background:var(--b)"></i><span id="pB">比較圈</span> <select id="selB"></select></label></div>
+<div class="pick"><label><i class="sw" style="background:var(--a)"></i><span id="pA">基準圈</span> <span class="sel"><span class="face" id="fA"></span><select id="selA"></select></span></label><label><i class="sw" style="background:var(--b)"></i><span id="pB">比較圈</span> <span class="sel"><span class="face" id="fB"></span><select id="selB"></select></span></label></div>
 <div id="laps"></div><p class="hint" id="cH" style="margin:10px 0 0" hidden></p></section>
 <section class="an">
 <div class="panel sticky"><h2>哪一段誰比較快</h2><svg id="map" role="img" aria-label="賽道軌跡，顏色表示兩圈在各路段誰較快"></svg>
@@ -142,9 +150,16 @@ function parseRaceBox(text){
   const ix={};for(const c in COLS)ix[c]=pos(ks,COLS[c]);
   const miss=[['t','時間'],['v','速度'],['l','圈數 Lap']].filter(x=>ix[x[0]]<0).map(x=>x[1]);
   if(miss.length)throw new Error('缺少'+miss.join('、')+'欄位'+(ix.l<0?'，這筆可能不是賽道模式的紀錄':'')+'。檔案裡的欄位：'+ks.slice(0,12).join(', '));
-  const by={};
+  const by={},all=[];
   for(let i=h+1;i<lines.length;i++){if(!lines[i].trim())continue;const p=splitCsv(lines[i],d),lap=parseInt(p[ix.l]);if(!(lap>0))continue;const tv=String(p[ix.t]).trim();let t=Date.parse(tv);t=isNaN(t)?num(tv):t/1000;const lat=num(p[ix.a]),lon=num(p[ix.o]),v=num(p[ix.v]);if(!isFinite(t)||!isFinite(lat)||!isFinite(lon)||!isFinite(v))continue;
-    (by[lap]=by[lap]||[]).push({t,lat,lon,v,g:ix.g>=0?(num(p[ix.g])||0):0,lean:ix.n>=0?(num(p[ix.n])||0):0});}
+    const q={t,lat,lon,v,g:ix.g>=0?(num(p[ix.g])||0):0,lean:ix.n>=0?(num(p[ix.n])||0):0};all.push(q);(by[lap]=by[lap]||[]).push(q);}
+  // RaceBox exports have no lean column: estimate it from GPS turn rate, lean = atan(v * yaw rate / g)
+  if(ix.n<0&&all.length>3){const la=all[0].lat,kx=111320*Math.cos(la*Math.PI/180),ky=110574,n=all.length,hd=new Float64Array(n);
+    for(let i=1;i<n;i++)hd[i]=Math.atan2((all[i].lat-all[i-1].lat)*ky,(all[i].lon-all[i-1].lon)*kx);hd[0]=hd[1];
+    let a=1,b=1;for(let i=0;i<n;i++){const T=all[i].t;while(a<i&&all[a].t<T-.5)a++;if(b<i)b=i;while(b<n-1&&all[b+1].t<=T+.5)b++;
+      const dt=all[b].t-all[Math.max(a,1)].t;let d=hd[b]-hd[Math.max(a,1)];d=(d+3*Math.PI)%(2*Math.PI)-Math.PI;const w=dt>0?d/dt:0;
+      all[i].lean=-Math.atan(all[i].v/3.6*w/9.81)*180/Math.PI;}
+    meta.__leanEst=1;}
   if(!Object.keys(by).length)throw new Error('檔案有資料，但沒有分圈。請確認紀錄是賽道模式，並已在 RaceBox 選好賽道。');
   return {meta,official,by};
 }
@@ -208,7 +223,7 @@ function analyze(sessions){
     let bp=null;if(lap.b[pk]>=0.2){bp=pk;while(bp>co.a&&lap.b[bp-1]>=0.2)bp--;}
     let lean=0;for(let i=co.a;i<=co.b;i++)if(Math.abs(lap.lean[i])>lean)lean=Math.abs(lap.lean[i]);
     const ex=Math.min(co.b,mi+25);
-    return {tIn:lap.t[co.ap]-lap.t[co.a],tOut:lap.t[co.b]-lap.t[co.ap],time:lap.t[co.b]-lap.t[co.a],minV:lap.v[mi],minS:mi,bp,peakB:lap.b[pk],exitV:lap.v[ex],entryV:lap.v[co.a],lean,off:lap.off[co.ap]};};
+    return {tIn:lap.t[co.ap]-lap.t[co.a],tOut:lap.t[co.b]-lap.t[co.ap],time:lap.t[co.b]-lap.t[co.a],minV:lap.v[mi],minS:mi,minLean:Math.abs(lap.lean[mi]),bp,peakB:lap.b[pk],exitV:lap.v[ex],entryV:lap.v[co.a],lean,off:lap.off[co.ap]};};
   const cm={};for(const id of ids)cm[id]=c.map(co=>metrics(laps[id],co));
   if(!valid.length)throw new Error('沒有可用的完整圈。');
   const pool=sessions.length>1?sessions.map(s=>valid.filter(id=>owner[id]===s).reduce((a,b)=>a==null||dur[b]<dur[a]?b:a,null)).filter(x=>x!=null):valid;
@@ -320,7 +335,7 @@ function renderHead(){const fr=focusR(),m=fr.s.raw.meta,d=m['Date UTC']?new Date
   document.querySelectorAll('.focus .link').forEach(x=>x.onclick=()=>{A=+x.dataset.a;B=+x.dataset.b;renderPick();renderCompare();setCur(+x.dataset.ap);gotoCompare()});
 }
 function renderPick(){
-  $('pT').textContent=bestMode()?'比較最快圈':'比較最快 5 圈';$('pA').textContent=bestMode()?'基準騎士':'基準圈';$('pB').textContent=bestMode()?'比較騎士':'比較圈';
+  $('pT').textContent=bestMode()?'比較最快圈':'比較最快 5 圈';$('pA').textContent=bestMode()?'基準':'基準圈';$('pB').textContent=bestMode()?'比較':'比較圈';
   if(bestMode()){const rs=[...R.riders].sort((a,b)=>R.laps[a.best].dur-R.laps[b.best].dur),gb=R.laps[rs[0].best].dur,o=rs.map(r=>`<option value="${r.best}">${esc(r.s.name)}　${R.laps[r.best].dur.toFixed(3)}</option>`).join('');
     $('selA').innerHTML=o;$('selB').innerHTML=o;$('selA').value=A;$('selB').value=B;
     $('laps').innerHTML=`<div class="laps">${rs.map(r=>{const id=r.best,d=R.laps[id].dur;return `<button class="lap ${id===A?'isA':''} ${id===B?'isB':''}" data-id="${id}" title="設為比較騎士"><i>${esc(r.s.name)}</i><b>${d.toFixed(3)}</b><span>L${id%1000}${d>gb?`，+${(d-gb).toFixed(3)}`:'，最快'}</span></button>`}).join('')}</div>`;
@@ -331,8 +346,9 @@ function renderPick(){
   document.querySelectorAll('.lap').forEach(x=>x.onclick=()=>{const id=+x.dataset.id;if(id===A)return;B=id;renderPick();renderCompare()});}
 $('selA').onchange=e=>{A=+e.target.value;if(A===B)B=other(A);renderPick();renderCompare()};
 $('selB').onchange=e=>{B=+e.target.value;if(A===B)A=other(B);renderPick();renderCompare()};
+function faces(){const f=id=>{const nm=bestMode()?R.owner[id].name:'Lap '+(id%1000);return `<span>${esc(nm)}</span><b>${R.laps[id].dur.toFixed(3)}</b>`};$('fA').innerHTML=f(A);$('fB').innerHTML=f(B)}
 function deltaArr(){const a=R.laps[A].t,b=R.laps[B].t;return Float64Array.from(a,(x,i)=>b[i]-x)}
-function renderCompare(){$('lgA').textContent=`基準 ${lab(A)} 較快`;$('lgB').textContent=`比較 ${lab(B)} 較快`;renderCH();renderMap();renderCharts();renderTable();paintCur()}
+function renderCompare(){faces();$('lgA').textContent=`基準 ${lab(A)} 較快`;$('lgB').textContent=`比較 ${lab(B)} 較快`;renderCH();renderMap();renderCharts();renderTable();paintCur()}
 function renderMap(){const m=R.laps[R.best],n=R.n,d=deltaArr(),xs=m.x,ys=m.y;let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;for(let i=0;i<n;i++){x0=Math.min(x0,xs[i]);x1=Math.max(x1,xs[i]);y0=Math.min(y0,ys[i]);y1=Math.max(y1,ys[i])}
   const pad=14,V=`${x0-pad} ${-y1-pad} ${x1-x0+2*pad} ${y1-y0+2*pad}`,el=$('map');el.setAttribute('viewBox',V);let h='';
   h+=`<polyline points="${Array.from(xs,(x,i)=>x.toFixed(1)+','+(-ys[i]).toFixed(1)).join(' ')}" fill="none" stroke="var(--rail)" stroke-width="3.4" stroke-linejoin="round"/>`;
@@ -343,9 +359,13 @@ function renderMap(){const m=R.laps[R.best],n=R.n,d=deltaArr(),xs=m.x,ys=m.y;let
   h+=`<circle cx="${xs[0]}" cy="${-ys[0]}" r="3.6" fill="var(--fg)"/><circle cx="${xs[0]}" cy="${-ys[0]}" r="1.6" fill="var(--panel)"/>`;
   R.corners.forEach(c=>{const x=xs[c.ap],y=ys[c.ap],k=Math.hypot(x-cx,y-cy)||1,lx=x+(x-cx)/k*8,ly=y+(y-cy)/k*8;h+=`<text x="${lx.toFixed(1)}" y="${(-ly+2).toFixed(1)}" text-anchor="middle" style="font:700 7px var(--num);fill:var(--fg);paint-order:stroke;stroke:var(--panel);stroke-width:2px">T${c.no}</text>`});
   h+=`<circle id="mc" r="3.4" fill="var(--fg)" stroke="var(--panel)" stroke-width="1.4"/>`;el.innerHTML=h;
-  const pick=e=>{const b=el.getBoundingClientRect(),vb=el.viewBox.baseVal,sc=Math.max(vb.width/b.width,vb.height/b.height),ox=vb.x+vb.width/2+(e.clientX-b.left-b.width/2)*sc,oy=-(vb.y+vb.height/2+(e.clientY-b.top-b.height/2)*sc);let bi=cur,bd=1e9;for(let i=0;i<n;i+=2){const q=(xs[i]-ox)**2+(ys[i]-oy)**2;if(q<bd){bd=q;bi=i}}const r=(e.pointerType==='mouse'?14:24)*sc;if(bd>r*r)return;setCur(bi)};
-  el.onpointermove=pick;el.onpointerdown=pick;
-  el.style.cursor='default';el.onmousemove=e=>{};}
+  const pick=e=>{const b=el.getBoundingClientRect(),vb=el.viewBox.baseVal,sc=Math.max(vb.width/b.width,vb.height/b.height),ox=vb.x+vb.width/2+(e.clientX-b.left-b.width/2)*sc,oy=-(vb.y+vb.height/2+(e.clientY-b.top-b.height/2)*sc);let bi=cur,bd=1e9;for(let i=0;i<n;i+=2){const q=(xs[i]-ox)**2+(ys[i]-oy)**2;if(q<bd){bd=q;bi=i}}return [bi,bd,sc]};
+  // press on the track and hold to drag the marker; hovering does nothing
+  let drag=false;
+  el.onpointerdown=e=>{const [bi,bd,sc]=pick(e),r=(e.pointerType==='mouse'?14:24)*sc;if(bd>r*r)return;drag=true;try{el.setPointerCapture(e.pointerId)}catch(_){}setCur(bi);e.preventDefault()};
+  el.onpointermove=e=>{if(!drag)return;if(e.pointerType==='mouse'&&!(e.buttons&1)){drag=false;return}setCur(pick(e)[0])};
+  el.onpointerup=el.onpointercancel=()=>{drag=false};
+  el.style.cursor='default';}
 function renderCharts(){charts=[];const a=R.laps[A],b=R.laps[B],d=deltaArr(),last=d[d.length-1];
   $('dT').innerHTML=`累積時間差 秒 · 終點 <b>${sg(last)}</b>（往上表示比較圈落後）`;
   const ext=(arrs,p)=>{let lo=1e9,hi=-1e9;for(const r of arrs)for(const v of r){if(v<lo)lo=v;if(v>hi)hi=v}const m=(hi-lo)*p||.1;return[lo-m,hi+m]};
@@ -367,21 +387,22 @@ function chart(id,h,series,[lo,hi],opt){const el=$(id),w=Math.max(280,el.parentE
     s+=`<polygon points="${L},${z} ${pts(r,v=>Math.max(v,0))}${E},${z}" style="fill:color-mix(in srgb,var(--a) 28%,transparent)"/><polygon points="${L},${z} ${pts(r,v=>Math.min(v,0))}${E},${z}" style="fill:color-mix(in srgb,var(--b) 28%,transparent)"/>`}
   for(const q of series)s+=`<polyline points="${pts(q.r)}" fill="none" stroke="var(${q.c})" stroke-width="${series.length>1?1.8:2}" stroke-linejoin="round"/>`;
   s+=`<line class="ch" y1="${mt}" y2="${h-mb}"/>`;el.innerHTML=s;el.setAttribute('role','img');el.setAttribute('aria-label','沿賽道距離的數據曲線，數字見每彎比較表');
-  const pick=e=>{const b=el.getBoundingClientRect(),sx=(e.clientX-b.left)*w/b.width;setCur(Math.round(Math.max(0,Math.min(n-1,(sx-ml)/(w-ml-mr)*(n-1)))))};el.onpointermove=pick;el.onpointerdown=pick;
+  const pick=e=>{const b=el.getBoundingClientRect(),sx=(e.clientX-b.left)*w/b.width;setCur(Math.round(Math.max(0,Math.min(n-1,(sx-ml)/(w-ml-mr)*(n-1)))))};let drag=false;
+  el.onpointerdown=e=>{drag=true;try{el.setPointerCapture(e.pointerId)}catch(_){}pick(e)};el.onpointermove=e=>{if(!drag)return;if(e.pointerType==='mouse'&&!(e.buttons&1)){drag=false;return}pick(e)};el.onpointerup=el.onpointercancel=()=>{drag=false};el.style.cursor='default';
   charts.push({el,X});}
 function setCur(i){cur=i;paintCur()}
 function paintCur(){if(!R)return;const a=R.laps[A],b=R.laps[B],m=R.laps[R.best],i=Math.min(cur,R.n-1);const c=R.corners.find(q=>i>=q.a&&i<=q.b);
   const mc=$('mc');if(mc){mc.setAttribute('cx',m.x[i]);mc.setAttribute('cy',-m.y[i])}
   for(const q of charts){const l=q.el.querySelector('.ch');l.setAttribute('x1',q.X(i));l.setAttribute('x2',q.X(i))}
   const d=b.t[i]-a.t[i];
-  $('read').innerHTML=[[`${Math.round(R.grid[i])} m`,c?`位置 · T${c.no}`:'位置'],[a.v[i].toFixed(1),`${esc(lab2(A))} km/h`],[b.v[i].toFixed(1),`${esc(lab2(B))} km/h`],[sg(d),'時間差 秒'],[`${Math.abs(a.lean[i]).toFixed(0)}° / ${Math.abs(b.lean[i]).toFixed(0)}°`,'傾角']].map(x=>`<div><b>${x[0]}</b>${x[1]}</div>`).join('');
+  $('read').innerHTML=[[`${Math.round(R.grid[i])} m`,c?`位置 · T${c.no}`:'位置'],[a.v[i].toFixed(1),`${esc(lab2(A))} km/h`],[b.v[i].toFixed(1),`${esc(lab2(B))} km/h`],[sg(d),'時間差 秒'],[`${Math.abs(a.lean[i]).toFixed(0)}°`,`${esc(lab2(A))} 傾角`],[`${Math.abs(b.lean[i]).toFixed(0)}°`,`${esc(lab2(B))} 傾角`]].map(x=>`<div><b>${x[0]}</b>${x[1]}</div>`).join('');
   document.querySelectorAll('#tb tr').forEach((r,k)=>r.classList.toggle('on',!!c&&c.no===k+1));}
-function renderTable(){const rb=focusR().best;$('tH').textContent=`左邊是基準 ${lab(A)}，右邊是比較 ${lab(B)}。時間差為正，表示比較圈較慢。點一列可到比較頁看該彎。`;
-  $('th').innerHTML=`<tr><th>彎</th><th>時間差 秒</th><th>煞車點差</th><th>最低速 km/h</th><th>出彎速 km/h</th><th>最大傾角</th><th>全場最快</th><th>${multi()?esc(focusR().s.name)+' ':''}最快圈可省 秒</th></tr>`;
+function renderTable(){const rb=focusR().best;$('tH').textContent=`左邊是基準 ${lab(A)}，右邊是比較 ${lab(B)}。時間差為正，表示比較圈較慢。點一列可到比較頁看該彎。`+(sessions.some(x=>x.raw.meta.__leanEst)?'RaceBox 檔案沒有傾角欄位，傾角是用 GPS 轉彎速度推算的，誤差約 ±3°。':'');
+  const pl=x=>bestMode()?R.owner[x].name:'Lap'+(x%1000),ab=`<small class="ab">${esc(pl(A))}/${esc(pl(B))}</small>`;$('th').innerHTML=`<tr><th>彎</th><th>時間差 秒</th><th>煞車點差</th><th>最低速 km/h${ab}</th><th>最低速時傾角${ab}</th><th>出彎速 km/h${ab}</th><th>最大傾角${ab}</th><th>全場最快</th><th>${multi()?esc(focusR().s.name)+' ':''}最快圈可省 秒</th></tr>`;
   const rows=R.corners.map((c,i)=>{const p=R.cm[A][i],q=R.cm[B][i],dt=q.time-p.time;let bd='—';if(p.bp!=null&&q.bp!=null){const k=q.bp-p.bp;bd=Math.abs(k)<1?'相同':(k>0?'晚 ':'早 ')+Math.abs(k)+' m'}
-    return `<tr tabindex="0" data-ap="${c.ap}"><td>T${c.no} ${c.side}</td><td class="w">${sg(dt)}</td><td>${bd}</td><td>${p.minV.toFixed(1)} <em>/</em> ${q.minV.toFixed(1)}</td><td>${p.exitV.toFixed(1)} <em>/</em> ${q.exitV.toFixed(1)}</td><td>${p.lean.toFixed(0)}° <em>/</em> ${q.lean.toFixed(0)}°</td><td>${esc(lab2(c.bestLap))} ${c.bestT.toFixed(3)}</td><td>${c.gain.toFixed(3)}</td></tr>`});
+    return `<tr tabindex="0" data-ap="${c.ap}"><td>T${c.no} ${c.side}</td><td class="w">${sg(dt)}</td><td>${bd}</td><td>${p.minV.toFixed(1)} <em>/</em> ${q.minV.toFixed(1)}</td><td>${p.minLean.toFixed(0)}° <em>/</em> ${q.minLean.toFixed(0)}°</td><td>${p.exitV.toFixed(1)} <em>/</em> ${q.exitV.toFixed(1)}</td><td>${p.lean.toFixed(0)}° <em>/</em> ${q.lean.toFixed(0)}°</td><td>${esc(lab2(c.bestLap))} ${c.bestT.toFixed(3)}</td><td>${c.gain.toFixed(3)}</td></tr>`});
   const tot=R.laps[B].dur-R.laps[A].dur;
-  $('tb').innerHTML=rows.join('')+`<tr data-ap="-1"><td>整圈</td><td class="w">${sg(tot)}</td><td></td><td></td><td></td><td></td><td>${R.theo.toFixed(3)}</td><td>${(R.laps[rb].dur-R.theo).toFixed(3)}</td></tr>`;
+  $('tb').innerHTML=rows.join('')+`<tr data-ap="-1"><td>整圈</td><td class="w">${sg(tot)}</td><td></td><td></td><td></td><td></td><td></td><td>${R.theo.toFixed(3)}</td><td>${(R.laps[rb].dur-R.theo).toFixed(3)}</td></tr>`;
   document.querySelectorAll('#tb tr').forEach(r=>{const jump=()=>{const k=+r.dataset.ap;if(k>=0){setCur(k);gotoCompare()}};r.onclick=jump;r.onkeydown=e=>{if(e.key==='Enter')jump()}});}
 function showErr(m){$('err').textContent=m;$('err').hidden=!m}
 function showMsg(m){$('msg').textContent=m;$('msg').hidden=!m}
