@@ -138,7 +138,7 @@ th .ab{display:block;margin-top:3px;color:var(--fg);font-weight:500;font-size:15
 <div class="panel sticky"><h2>哪一段誰比較快</h2><svg id="map" role="img" aria-label="賽道軌跡，顏色表示兩圈在各路段誰較快"></svg>
 <div class="lg"><span><i class="sw" style="background:var(--a)"></i><span id="lgA"></span></span><span><i class="sw" style="background:var(--b)"></i><span id="lgB"></span></span><span><i class="sw" style="background:var(--rail)"></i>差不多</span></div></div>
 <div class="panel"><div class="read" id="read"></div>
-<div class="chart"><h3>速度 km/h</h3><svg id="cV"></svg><h3 id="dT"></h3><svg id="cD"></svg><h3>煞車減速度 G（上方為煞車，下方為加速）</h3><svg id="cB"></svg><h3>傾角 °（上方右傾，下方左傾）</h3><svg id="cL"></svg></div>
+<div class="chart"><h3>速度 km/h</h3><svg id="cV"></svg><h3 id="dT"></h3><svg id="cD"></svg><h3>加減速 G 值（上方為煞車，下方為加速）</h3><svg id="cB"></svg><h3>傾角 °（上方右傾，下方左傾）</h3><svg id="cL"></svg></div>
 <p class="hint" style="margin:8px 0 0">橫軸是賽道距離（公尺）。在圖上或軌跡上滑動，可查看該位置的數字。</p></div>
 </section></div>
 <div class="page" data-page="3" hidden><section><h2>每彎比較</h2><p class="hint" id="tH"></p><div class="tw"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div></section></div>
@@ -399,7 +399,7 @@ function renderMap(){const m=R.laps[R.best],n=R.n,d=deltaArr(),xs=m.x,ys=m.y;let
   el.onpointerup=el.onpointercancel=()=>{drag=false};
   el.style.cursor='default';}
 function renderCharts(){charts=[];const a=R.laps[A],b=R.laps[B],d=deltaArr(),last=d[d.length-1];
-  $('dT').innerHTML=`累積時間差 秒 · 終點 <b>${sg(last)}</b>（往上表示比較圈落後）`;
+  $('dT').innerHTML=`累積時間差 秒 · 終點 <b>${sg(last)}</b>（往上表示 ${esc(nmLap(B))} 落後）`;
   const ext=(arrs,p)=>{let lo=1e9,hi=-1e9;for(const r of arrs)for(const v of r){if(v<lo)lo=v;if(v>hi)hi=v}const m=(hi-lo)*p||.1;return[lo-m,hi+m]};
   chart('cV',200,[{r:a.v,c:'--a'},{r:b.v,c:'--b'}],ext([a.v,b.v],.04),{labels:true});
   const de=ext([d],.1);de[0]=Math.min(de[0],-.02);de[1]=Math.max(de[1],.02);chart('cD',130,[{r:d,c:'--fg'}],de,{zero:true,area:true});
