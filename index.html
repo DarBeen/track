@@ -80,6 +80,8 @@ th .ab{display:block;margin-top:3px;color:var(--fg);font-weight:500;font-size:15
 .sel:focus-within .face{outline:2px solid var(--a);outline-offset:2px}
 .pick label{flex:1 1 auto}
 .top .hd{flex:1 1 260px;min-width:0}.by{white-space:nowrap}
+.fab{position:fixed;z-index:20;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:6px;min-height:52px;padding:10px 18px 10px 12px;border:2px solid var(--a);border-radius:26px;background:var(--a);color:var(--on);font:800 18px var(--txt);box-shadow:0 6px 20px rgba(0,0,0,.55);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.fab svg{width:22px;height:22px;flex:none}.fab.dragging{cursor:grabbing;opacity:.85}.fab[hidden]{display:none}
 .msg{margin:0;font-weight:500}
 .an{scroll-margin-top:56px}.fb{vertical-align:middle}#clr{vertical-align:middle}
 #main{display:grid;gap:20px}#main[hidden]{display:none}#main>*{min-width:0}
@@ -108,6 +110,16 @@ th .ab{display:block;margin-top:3px;color:var(--fg);font-weight:500;font-size:15
 .rd{grid-template-columns:24px minmax(0,1fr) 84px}.rd .x{grid-column:3;grid-row:1;justify-self:end}.rd .bk{grid-column:1/3}.rd .rs{grid-column:1/4;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.rd .link{grid-column:1/4;justify-self:start}.rd>span:empty{display:none}
 .steps{grid-template-columns:minmax(0,1fr)}
 .focus li{grid-template-columns:64px 88px minmax(0,1fr)}.focus p{grid-column:1/4}.focus .link{grid-column:3;grid-row:1;justify-self:end}}
+.seg{display:inline-flex;border:1px solid var(--a);border-radius:3px;overflow:hidden;justify-self:start;grid-column:1/-1}
+.seg button{background:none;border:0;color:var(--fg);font:600 16px var(--txt);min-height:40px;padding:6px 14px;cursor:pointer;white-space:nowrap}
+.seg button+button{border-left:1px solid var(--a)}.seg button[aria-pressed=true]{background:var(--a);color:var(--on)}
+.pk{grid-column:1/-1;margin:0}.rd .pk{order:10}
+.pkb{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:12px;order:10}.pkb .hint{margin:0}.btn.ok{min-height:48px;padding:10px 20px;font-size:18px;animation:none}.btn.ok:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+.chips{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:8px}
+.rd .seg,.rd .chips{order:10}
+.chip{display:inline-flex;align-items:baseline;gap:8px;background:var(--panel);border:1px solid var(--rule);border-radius:3px;color:var(--muted);font:600 16px var(--txt);min-height:40px;padding:6px 12px;cursor:pointer}
+.chip b{font-weight:500;font-variant-numeric:tabular-nums}.chip[aria-pressed=true]{border-color:var(--a);color:var(--fg);box-shadow:inset 0 0 0 1px var(--a)}
+@media(max-width:1100px){.rd{grid-template-columns:24px minmax(0,1fr) auto 44px}.rd .seg{grid-column:3;grid-row:1}.rd .x{grid-column:4;grid-row:1}.rd .bk{grid-column:1/3}.rd .cc{grid-column:3/5}.rd .rs,.rd .link,.rd .chips{grid-column:1/-1}.rd .chips,.rd .pk,.rd .pkb{order:0}.rd>label{grid-column:1;grid-row:1}.rd .nm{grid-column:1/3;grid-row:1}.rd>label~.nm{grid-column:2}}
 </style>
 <div class="wrap">
 <header class="top"><div class="hd"><h1>RaceBox 賽道分析器</h1><p class="sub" id="meta">KYC Track School</p></div>
@@ -130,6 +142,7 @@ th .ab{display:block;margin-top:3px;color:var(--fg);font-weight:500;font-size:15
 <p class="hint" style="margin:8px 0 0">橫軸是賽道距離（公尺）。在圖上或軌跡上滑動，可查看該位置的數字。</p></div>
 </section></div>
 <div class="page" data-page="3" hidden><section><h2>每彎比較</h2><p class="hint" id="tH"></p><div class="tw"><table><thead id="th"></thead><tbody id="tb"></tbody></table></div></section></div>
+<button id="fab" class="fab" hidden aria-label="返回上一頁"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg><span id="fabT">返回</span></button>
 <div class="pn"><button class="link" id="prev"></button><span id="pgN"></span><button class="link" id="next"></button></div>
 
 </div>
@@ -170,7 +183,7 @@ function analyze(sessions){
   // every lap gets a global id: session uid * 1000 + lap number
   const by={},official={},sgnOf={},owner={};
   const ids=[];
-  for(const s of sessions){const own=Object.keys(s.raw.by).map(Number).filter(l=>s.raw.by[l].length>50);
+  for(const s of sessions){const own=Object.keys(s.raw.by).map(Number).filter(l=>s.raw.by[l].length>50&&(!s.pick||!s.pick.length||s.pick.includes(l)));
     if(!own.length)throw new Error('「'+s.name+'」的檔案沒有完整的圈。');
     // decel sign per file: make brake positive regardless of device axis convention
     let cov=0,lg=own.reduce((a,b)=>s.raw.by[b].length>s.raw.by[a].length?b:a);const rr=s.raw.by[lg];for(let i=1;i<rr.length;i++)cov+=(rr[i].v-rr[i-1].v)*rr[i].g;const sg_=cov<0?1:-1;
@@ -259,16 +272,23 @@ const sg=(x,d=3)=>(x>=0?'+':'−')+Math.abs(x).toFixed(d);
 let R=null,A,B,cur=0,charts=[],sessions=[],uid=0,focusUid=0,grp='';
 const clip=(v,n)=>String(v==null?'':v).replace(/[\r\n,]+/g,' ').trim().slice(0,n);
 const inGrp=s=>!grp||String(s.cc)===grp;
-let pageNo=0;const PAGES=['總覽','重點彎','比較','每彎'];
-function go(n,dir){n=Math.max(0,Math.min(3,n));const d=dir==null?Math.sign(n-pageNo):dir;pageNo=n;
+let pageNo=0,prevPage=1;const PAGES=['總覽','重點彎','比較','每彎'];
+function go(n,dir){n=Math.max(0,Math.min(3,n));if(n!==pageNo)prevPage=pageNo;const d=dir==null?Math.sign(n-pageNo):dir;pageNo=n;
   document.querySelectorAll('.page').forEach(p=>{const on=+p.dataset.page===n;p.hidden=!on;if(on){p.style.setProperty('--dx',(d*24)+'px');p.style.animation='none';void p.offsetWidth;p.style.animation=''}});
   document.querySelectorAll('#tabs button').forEach(b=>{const on=+b.dataset.p===n;b.setAttribute('aria-selected',on);b.tabIndex=on?0:-1});
-  $('prev').hidden=n===0;$('next').hidden=n===3;if(n>0)$('prev').textContent='← '+PAGES[n-1];if(n<3)$('next').textContent=PAGES[n+1]+' →';$('pgN').textContent=(n+1)+' / 4';
+  $('prev').hidden=n===0;$('next').hidden=n===3;if(n>0)$('prev').textContent='← '+PAGES[n-1];if(n<3)$('next').textContent=PAGES[n+1]+' →';$('pgN').textContent=(n+1)+' / 4';$('fab').hidden=n!==2;if(n===2)$('fabT').textContent='返回'+PAGES[prevPage===2?1:prevPage];
   if(n===2&&R){renderCharts();paintCur()}window.scrollTo(0,0)}
 function gotoCompare(){go(2);document.querySelector('.an').scrollIntoView({behavior:'auto'})}
 const multi=()=>sessions.length>1;
 const bestMode=()=>R.riders.length>1;
-const other=x=>(bestMode()?R.riders.map(r=>r.best).sort((a,b)=>R.laps[a].dur-R.laps[b].dur):R.sorted).find(i=>i!==x);
+const byDur=(a,b)=>R.laps[a].dur-R.laps[b].dur;
+// laps offered for comparison: per rider either the fastest (1 lap with several riders, 5 laps alone) or the rider's own picks
+const cands=r=>{const p=r.s.pick;if(p&&p.length)return [...r.ids].sort(byDur);return bestMode()?[r.best]:[...r.ids].sort(byDur).slice(0,5)};
+const allC=()=>R.riders.flatMap(cands).sort(byDur);
+const anyPick=()=>R.riders.some(r=>r.s.pick&&r.s.pick.length);
+const other=x=>allC().find(i=>i!==x)??R.sorted.find(i=>i!==x);
+const nmLap=id=>{const s=R.owner[id];return bestMode()?(s.pick&&s.pick.length?s.name+' L'+(id%1000):s.name):'Lap '+(id%1000)};
+function fixAB(){const c=allC();if(!c.includes(A))A=c.includes(focusR().best)?focusR().best:c[0];if(!c.includes(B)||B===A)B=other(A)}
 const riderOf=id=>R.riders.find(r=>r.s===R.owner[id]);
 const lab=id=>(multi()?R.owner[id].name+' L':'Lap ')+(id%1000);
 const lab2=id=>(multi()?R.owner[id].name+' L':'L')+(id%1000);
@@ -276,7 +296,7 @@ const focusR=()=>R.riders.find(r=>r.s.uid===focusUid)||R.riders[0];
 // re-run the analysis; on failure keep the previous state and report why
 function commit(next){const act=next.filter(inGrp),nr=analyze(act);sessions=next;R=nr;
   if(!R.riders.some(r=>r.s.uid===focusUid))focusUid=R.riders[0].s.uid;
-  const fb=focusR().best,isB=i=>R.riders.some(r=>r.best===i);if(!R.laps[A]||(bestMode()&&!isB(A)))A=fb;if(!R.laps[B]||B===A||(bestMode()&&!isB(B)))B=other(A);}
+  if(!R.laps[A])A=focusR().best;if(!R.laps[B]||B===A)B=other(A);fixAB();}
 function centre(raw){let a=0,o=0,n=0;for(const l in raw.by)for(const p of raw.by[l]){a+=p.lat;o+=p.lon;n++}return n?[a/n,o/n]:null}
 function addFile(text,file){if(sessions.some(s=>s.text===text))throw new Error('「'+file+'」已經匯入過了。');
   let raw;try{raw=parseRaceBox(text)}catch(x){throw new Error('「'+file+'」：'+x.message)}
@@ -304,6 +324,12 @@ async function exportRider(r){const {text,count}=shareText(r),fn=('racebox-'+r.s
   }catch(x){showErr('無法產生分享檔：'+x.message)}}
 function focusBiggest(){let bi=0,bd=-1;R.corners.forEach((c,i)=>{const d=Math.abs(R.cm[B][i].time-R.cm[A][i].time);if(d>bd){bd=d;bi=i}});setCur(R.corners[bi].ap)}
 function renderAll(){renderRiders();renderHead();renderPick();renderCompare()}
+function lapList(s){return Object.keys(s.raw.by).map(Number).filter(l=>s.raw.by[l].length>50).sort((a,b)=>a-b).map(l=>{const r=s.raw.by[l],dt=(r[r.length-1].t-r[0].t)/(r.length-1);return {l,dur:s.raw.official[l]||(r[r.length-1].t-r[0].t+dt)}})}
+function modeUI(s,r){const p=s.pick&&s.pick.length,ed=!!s.draft;
+  const seg=`<span class="seg" role="group" aria-label="比較用的圈"><button data-mf="${s.uid}" aria-pressed="${!p&&!ed}">最快圈</button><button data-mp="${s.uid}" aria-pressed="${!!(p||ed)}">自選</button></span>`;
+  if(ed){const need=multi()?1:2,n=s.draft.length;
+    return seg+`<div class="chips">${lapList(s).map(q=>`<button class="chip" data-c="${s.uid}" data-l="${q.l}" aria-pressed="${s.draft.includes(q.l)}">L${q.l}<b>${q.dur.toFixed(3)}</b></button>`).join('')}</div><div class="pkb"><button class="btn ok" data-ok="${s.uid}" ${n<need?'disabled':''}>確定（已選 ${n} 圈）</button>${n<need?`<span class="hint">至少要選 ${need} 圈</span>`:''}</div>`}
+  return seg+(p?`<p class="hint pk">只分析選取的 ${s.pick.length} 圈：${[...s.pick].sort((a,b)=>a-b).map(l=>'L'+l).join('、')}。按「自選」可重新選擇，按「最快圈」恢復全部。</p>`:'')}
 function renderRiders(){const fr=focusR(),gb=R.laps[R.best].dur;document.body.classList.remove('noData');$('main').hidden=false;$('empty').hidden=true;$('clr').hidden=false;
   $('rH').textContent=multi()?'選一位當分析對象，下方的重點與統計都會以他為準。暱稱、車款和排氣量可直接修改，也會寫進分享檔。':'填好暱稱和車款後按「檔案分享」傳給車友，也可以載入車友傳來的檔案。';
   const ccs=[...new Set(sessions.map(s=>s.cc).filter(Boolean))].sort((a,b)=>a-b);$('grpW').hidden=ccs.length<2&&!grp;
@@ -311,12 +337,17 @@ function renderRiders(){const fr=focusR(),gb=R.laps[R.best].dur;document.body.cl
   $('riders').innerHTML=sessions.map(s=>{const u=s.uid,r=R.riders.find(q=>q.s===s),on=r===fr;
     const rad=multi()?`<label><input type="radio" name="fr" value="${u}" ${on?'checked':''} ${r?'':'disabled'} aria-label="以 ${esc(s.name)} 為分析對象"></label>`:'<span></span>';
     const st=r?`<div><b>${R.laps[r.best].dur.toFixed(3)}</b>最快圈 L${r.best%1000}</div><div><b>${multi()?'+'+(R.laps[r.best].dur-gb).toFixed(3):r.theo.toFixed(3)}</b>${multi()?'與本組最快差':'理論最佳圈'}</div><div><b>${r.ids.length}</b>圈</div>`:'<div>不在此分組</div><div></div><div></div>';
-    return `<div class="rd ${r?'':'off'}">${rad}<input type="text" class="nm" maxlength="24" value="${esc(s.name)}" data-u="${u}" aria-label="暱稱" placeholder="暱稱"><input type="text" class="bk" maxlength="32" value="${esc(s.bike)}" data-b="${u}" aria-label="車款" placeholder="車款"><input type="number" class="cc" min="0" max="2500" inputmode="numeric" value="${s.cc}" data-c="${u}" aria-label="排氣量 cc" placeholder="cc"><span class="rs">${st}</span>${r?`<button class="link" data-s="${u}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>檔案分享</button>`:'<span></span>'}${multi()&&r&&!on?`<button class="link" data-v="${u}">比最快圈</button>`:'<span></span>'}<button class="x" data-x="${u}" aria-label="移除 ${esc(s.name)}" title="移除">×</button></div>`}).join('');
+    return `<div class="rd ${r?'':'off'}">${rad}<input type="text" class="nm" maxlength="24" value="${esc(s.name)}" data-u="${u}" aria-label="暱稱" placeholder="暱稱"><input type="text" class="bk" maxlength="32" value="${esc(s.bike)}" data-b="${u}" aria-label="車款" placeholder="車款"><input type="number" class="cc" min="0" max="2500" inputmode="numeric" value="${s.cc}" data-c="${u}" aria-label="排氣量 cc" placeholder="cc">${r?modeUI(s,r):''}<span class="rs">${st}</span>${r?`<button class="link" data-s="${u}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg>檔案分享</button>`:'<span></span>'}${multi()&&r&&!on?`<button class="link" data-v="${u}">比最快圈</button>`:'<span></span>'}<button class="x" data-x="${u}" aria-label="移除 ${esc(s.name)}" title="移除">×</button></div>`}).join('');
   const S=u=>sessions.find(q=>q.uid===+u);
   document.querySelectorAll('.rd input[type=radio]').forEach(x=>x.onchange=()=>{focusUid=+x.value;const b=focusR().best;if(B===b)B=A;A=b;if(A===B)B=other(A);renderAll();focusBiggest()});
   document.querySelectorAll('.rd .nm').forEach(x=>x.onchange=()=>{const n=clip(x.value,24);if(n)S(x.dataset.u).name=n;renderAll()});
   document.querySelectorAll('.rd .bk').forEach(x=>x.onchange=()=>{S(x.dataset.b).bike=clip(x.value,32);renderCH()});
   document.querySelectorAll('.rd .cc').forEach(x=>x.onchange=()=>{S(x.dataset.c).cc=parseInt(x.value)||'';setGroup(grp&&sessions.some(q=>String(q.cc)===grp)?grp:'')});
+  const reMode=(s,prev)=>{const pg=pageNo;try{commit(sessions);showErr('')}catch(e){s.pick=prev;try{commit(sessions)}catch(_){}showErr(/少於 2/.test(e.message)?'至少要選 2 圈才能比較。':e.message)}A=focusR().best;B=other(A);renderAll();focusBiggest();go(pg)};
+  document.querySelectorAll('.rd [data-mf]').forEach(x=>x.onclick=()=>{const s=S(x.dataset.mf);s.draft=null;if(!s.pick){renderRiders();return}const prev=s.pick;s.pick=null;reMode(s,prev)});
+  document.querySelectorAll('.rd [data-mp]').forEach(x=>x.onclick=()=>{const s=S(x.dataset.mp);if(s.draft)return;const r=R.riders.find(q=>q.s===s);s.draft=s.pick&&s.pick.length?[...s.pick]:cands(r).map(id=>id%1000);renderRiders()});
+  document.querySelectorAll('.rd [data-c]').forEach(x=>x.onclick=()=>{const s=S(x.dataset.c),l=+x.dataset.l;s.draft=s.draft.includes(l)?s.draft.filter(q=>q!==l):[...s.draft,l];renderRiders()});
+  document.querySelectorAll('.rd [data-ok]').forEach(x=>x.onclick=()=>{const s=S(x.dataset.ok),prev=s.pick;s.pick=[...s.draft];s.draft=null;reMode(s,prev)});
   document.querySelectorAll('.rd [data-s]').forEach(x=>x.onclick=()=>exportRider(R.riders.find(r=>r.s.uid===+x.dataset.s)));
   document.querySelectorAll('.rd [data-v]').forEach(x=>x.onclick=()=>{A=focusR().best;B=R.riders.find(r=>r.s.uid===+x.dataset.v).best;renderPick();renderCompare();focusBiggest();gotoCompare()});
   document.querySelectorAll('.rd [data-x]').forEach(x=>x.onclick=()=>{const nx=sessions.filter(q=>q.uid!==+x.dataset.x);if(!nx.length){resetAll();return}
@@ -335,19 +366,19 @@ function renderHead(){const fr=focusR(),m=fr.s.raw.meta,d=m['Date UTC']?new Date
     return `<li><div class="tag">T${c.no}<small>${c.side}彎</small></div><div class="gain">${c.gain.toFixed(3)}<small>秒</small></div><p>${esc(bestMode()?R.owner[c.bestLap].name:lab(c.bestLap))} ${a>=o?'主要快在入彎段':'主要快在出彎段'}（入彎 ${sg(-a,2)}、出彎 ${sg(-o,2)} 秒，負值表示較快）${f.length?'。'+f.join('、'):''}。</p><button class="link" data-a="${rb}" data-b="${c.bestLap}" data-ap="${c.ap}">看這彎</button></li>`}).join('')||'<li><p>各彎的最快時間幾乎都來自最快圈。</p></li>';
   document.querySelectorAll('.focus .link').forEach(x=>x.onclick=()=>{A=+x.dataset.a;B=+x.dataset.b;renderPick();renderCompare();setCur(+x.dataset.ap);gotoCompare()});
 }
-function renderPick(){
-  $('pT').textContent=bestMode()?'比較最快圈':'比較最快 5 圈';$('pA').textContent=bestMode()?'基準':'基準圈';$('pB').textContent=bestMode()?'比較':'比較圈';
-  if(bestMode()){const rs=[...R.riders].sort((a,b)=>R.laps[a.best].dur-R.laps[b.best].dur),gb=R.laps[rs[0].best].dur,o=rs.map(r=>`<option value="${r.best}">${esc(r.s.name)}　${R.laps[r.best].dur.toFixed(3)}</option>`).join('');
-    $('selA').innerHTML=o;$('selB').innerHTML=o;$('selA').value=A;$('selB').value=B;
-    $('laps').innerHTML=`<div class="laps">${rs.map(r=>{const id=r.best,d=R.laps[id].dur;return `<button class="lap ${id===A?'isA':''} ${id===B?'isB':''}" data-id="${id}" title="設為比較騎士"><i>${esc(r.s.name)}</i><b>${d.toFixed(3)}</b><span>L${id%1000}${d>gb?`，+${(d-gb).toFixed(3)}`:'，最快'}</span></button>`}).join('')}</div>`;
-  }else{const r=R.riders[0],top=[...r.ids].sort((x,y)=>R.laps[x].dur-R.laps[y].dur).slice(0,5);for(const k of [A,B])if(r.ids.includes(k)&&!top.includes(k))top.push(k);const show=top.sort((x,y)=>R.laps[x].dur-R.laps[y].dur),o=show.map(i=>`<option value="${i}">Lap ${i%1000}　${R.laps[i].dur.toFixed(3)}</option>`).join('');$('selA').innerHTML=o;$('selB').innerHTML=o;$('selA').value=A;$('selB').value=B;
-    $('laps').innerHTML=`<div class="laps">${show.map(id=>{const l=R.laps[id];let wi=0,wd=-9;R.corners.forEach((c,i)=>{const d=R.cm[id][i].time-R.cm[r.best][i].time;if(d>wd){wd=d;wi=i}});
-      const note=id===r.best?'最快圈':`+${(l.dur-R.laps[r.best].dur).toFixed(3)}，T${wi+1} 差最多 ${sg(wd,2)}`;
-      return `<button class="lap ${id===A?'isA':''} ${id===B?'isB':''}" data-id="${id}" title="設為比較圈"><i>L${id%1000}</i><b>${l.dur.toFixed(3)}</b><span>${note}</span></button>`}).join('')}</div>`;}
+function renderPick(){fixAB();
+  $('pT').textContent=anyPick()?'比較自選圈':bestMode()?'比較最快圈':'比較最快 5 圈';$('pA').textContent=bestMode()?'基準':'基準圈';$('pB').textContent=bestMode()?'比較':'比較圈';
+  const c=allC(),gb=R.laps[c[0]].dur,o=c.map(id=>`<option value="${id}">${esc(nmLap(id))}　${R.laps[id].dur.toFixed(3)}</option>`).join('');
+  $('selA').innerHTML=o;$('selB').innerHTML=o;$('selA').value=A;$('selB').value=B;
+  const card=(id,r)=>{const l=R.laps[id];let note;
+    if(bestMode())note=`L${id%1000}，${l.dur>gb?'+'+(l.dur-gb).toFixed(3):'最快'}`;
+    else{let wi=0,wd=-9;R.corners.forEach((co,i)=>{const d=R.cm[id][i].time-R.cm[r.best][i].time;if(d>wd){wd=d;wi=i}});note=id===r.best?'最快圈':`+${(l.dur-R.laps[r.best].dur).toFixed(3)}，T${wi+1} 差最多 ${sg(wd,2)}`}
+    return `<button class="lap ${id===A?'isA':''} ${id===B?'isB':''}" data-id="${id}" title="設為比較"><i>${bestMode()&&!anyPick()?esc(R.owner[id].name):'L'+(id%1000)}</i><b>${l.dur.toFixed(3)}</b><span>${note}</span></button>`};
+  $('laps').innerHTML=bestMode()&&anyPick()?R.riders.map(r=>`<div class="rg"><h3>${esc(r.s.name)}</h3><div class="laps">${cands(r).map(id=>card(id,r)).join('')}</div></div>`).join(''):`<div class="laps">${c.map(id=>card(id,R.riders.find(r=>r.ids.includes(id)))).join('')}</div>`;
   document.querySelectorAll('.lap').forEach(x=>x.onclick=()=>{const id=+x.dataset.id;if(id===A)return;B=id;renderPick();renderCompare()});}
 $('selA').onchange=e=>{A=+e.target.value;if(A===B)B=other(A);renderPick();renderCompare()};
 $('selB').onchange=e=>{B=+e.target.value;if(A===B)A=other(B);renderPick();renderCompare()};
-function faces(){const f=id=>{const nm=bestMode()?R.owner[id].name:'Lap '+(id%1000);return `<span>${esc(nm)}</span><b>${R.laps[id].dur.toFixed(3)}</b>`};$('fA').innerHTML=f(A);$('fB').innerHTML=f(B)}
+function faces(){const f=id=>{const nm=nmLap(id);return `<span>${esc(nm)}</span><b>${R.laps[id].dur.toFixed(3)}</b>`};$('fA').innerHTML=f(A);$('fB').innerHTML=f(B)}
 function deltaArr(){const a=R.laps[A].t,b=R.laps[B].t;return Float64Array.from(a,(x,i)=>b[i]-x)}
 function renderCompare(){faces();$('lgA').textContent=`基準 ${lab(A)} 較快`;$('lgB').textContent=`比較 ${lab(B)} 較快`;renderCH();renderMap();renderCharts();renderTable();paintCur()}
 function renderMap(){const m=R.laps[R.best],n=R.n,d=deltaArr(),xs=m.x,ys=m.y;let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;for(let i=0;i<n;i++){x0=Math.min(x0,xs[i]);x1=Math.max(x1,xs[i]);y0=Math.min(y0,ys[i]);y1=Math.max(y1,ys[i])}
@@ -399,7 +430,7 @@ function paintCur(){if(!R)return;const a=R.laps[A],b=R.laps[B],m=R.laps[R.best],
   $('read').innerHTML=[[`${Math.round(R.grid[i])} m`,c?`位置 · T${c.no}`:'位置'],[a.v[i].toFixed(1),`${esc(lab2(A))} km/h`],[b.v[i].toFixed(1),`${esc(lab2(B))} km/h`],[sg(d),'時間差 秒'],[`${Math.abs(a.lean[i]).toFixed(0)}°`,`${esc(lab2(A))} 傾角`],[`${Math.abs(b.lean[i]).toFixed(0)}°`,`${esc(lab2(B))} 傾角`]].map(x=>`<div><b>${x[0]}</b>${x[1]}</div>`).join('');
   document.querySelectorAll('#tb tr').forEach((r,k)=>r.classList.toggle('on',!!c&&c.no===k+1));}
 function renderTable(){const rb=focusR().best;$('tH').textContent=`左邊是基準 ${lab(A)}，右邊是比較 ${lab(B)}。時間差為正，表示比較圈較慢。點一列可到比較頁看該彎。`+(sessions.some(x=>x.raw.meta.__leanEst)?'RaceBox 檔案沒有傾角欄位，傾角是用 GPS 轉彎速度推算的，誤差約 ±3°。':'');
-  const pl=x=>bestMode()?R.owner[x].name:'Lap'+(x%1000),ab=`<small class="ab">${esc(pl(A))}/${esc(pl(B))}</small>`;$('th').innerHTML=`<tr><th>彎</th><th>時間差 秒</th><th>煞車點差</th><th>最低速 km/h${ab}</th><th>最低速時傾角${ab}</th><th>出彎速 km/h${ab}</th><th>最大傾角${ab}</th><th>全場最快</th><th>${multi()?esc(focusR().s.name)+' ':''}最快圈可省 秒</th></tr>`;
+  const pl=x=>nmLap(x).replace('Lap ','Lap'),ab=`<small class="ab">${esc(pl(A))}/${esc(pl(B))}</small>`;$('th').innerHTML=`<tr><th>彎</th><th>時間差 秒</th><th>煞車點差</th><th>最低速 km/h${ab}</th><th>最低速時傾角${ab}</th><th>出彎速 km/h${ab}</th><th>最大傾角${ab}</th><th>全場最快</th><th>${multi()?esc(focusR().s.name)+' ':''}最快圈可省 秒</th></tr>`;
   const rows=R.corners.map((c,i)=>{const p=R.cm[A][i],q=R.cm[B][i],dt=q.time-p.time;let bd='—';if(p.bp!=null&&q.bp!=null){const k=q.bp-p.bp;bd=Math.abs(k)<1?'相同':(k>0?'晚 ':'早 ')+Math.abs(k)+' m'}
     return `<tr tabindex="0" data-ap="${c.ap}"><td>T${c.no} ${c.side}</td><td class="w">${sg(dt)}</td><td>${bd}</td><td>${p.minV.toFixed(1)} <em>/</em> ${q.minV.toFixed(1)}</td><td>${p.minLean.toFixed(0)}° <em>/</em> ${q.minLean.toFixed(0)}°</td><td>${p.exitV.toFixed(1)} <em>/</em> ${q.exitV.toFixed(1)}</td><td>${p.lean.toFixed(0)}° <em>/</em> ${q.lean.toFixed(0)}°</td><td>${esc(lab2(c.bestLap))} ${c.bestT.toFixed(3)}</td><td>${c.gain.toFixed(3)}</td></tr>`});
   const tot=R.laps[B].dur-R.laps[A].dur;
@@ -423,7 +454,17 @@ let rz;new ResizeObserver(()=>{clearTimeout(rz);rz=setTimeout(()=>{if(R){renderC
 document.body.classList.add('noData');$('clr').onclick=resetAll;
 document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>go(+b.dataset.p));
 $('tabs').onkeydown=e=>{const k=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(!k)return;e.preventDefault();go(pageNo+k);$('tabs').querySelector('[aria-selected=true]').focus()};
-$('prev').onclick=()=>go(pageNo-1);$('next').onclick=()=>go(pageNo+1);
+$('prev').onclick=()=>go(pageNo-1);
+(()=>{const f=$('fab');let sx,sy,ox,oy,moved=false,down=false;
+  const place=(x,y)=>{const w=f.offsetWidth,h=f.offsetHeight;x=Math.max(8,Math.min(innerWidth-w-8,x));y=Math.max(8,Math.min(innerHeight-h-8,y));f.style.left=x+'px';f.style.top=y+'px';f.style.right='auto';f.style.bottom='auto';return [x,y]};
+  try{const p=JSON.parse(localStorage.getItem('fabPos')||'null');if(p)requestAnimationFrame(()=>place(p[0]*innerWidth,p[1]*innerHeight))}catch(_){}
+  f.onpointerdown=e=>{down=true;moved=false;sx=e.clientX;sy=e.clientY;const r=f.getBoundingClientRect();ox=r.left;oy=r.top;try{f.setPointerCapture(e.pointerId)}catch(_){}};
+  f.onpointermove=e=>{if(!down)return;const dx=e.clientX-sx,dy=e.clientY-sy;if(!moved&&Math.hypot(dx,dy)<6)return;moved=true;f.classList.add('dragging');place(ox+dx,oy+dy)};
+  f.onpointerup=f.onpointercancel=e=>{if(!down)return;down=false;f.classList.remove('dragging');
+    if(moved){const r=f.getBoundingClientRect();try{localStorage.setItem('fabPos',JSON.stringify([r.left/innerWidth,r.top/innerHeight]))}catch(_){}}
+    else if(e.type==='pointerup')go(prevPage===2?1:prevPage)};
+  f.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go(prevPage===2?1:prevPage)}};
+  addEventListener('resize',()=>{if(f.style.left){const r=f.getBoundingClientRect();place(r.left,r.top)}});})();$('next').onclick=()=>go(pageNo+1);
 let tx=null,ty=0;const noSwipe='svg,.tw,input,select,button,.laps';
 $('main').addEventListener('touchstart',e=>{tx=e.touches.length===1&&!e.target.closest(noSwipe)?e.touches[0].clientX:null;ty=e.touches[0].clientY},{passive:true});
 $('main').addEventListener('touchend',e=>{if(tx==null)return;const dx=e.changedTouches[0].clientX-tx,dy=e.changedTouches[0].clientY-ty;tx=null;if(Math.abs(dx)>70&&Math.abs(dx)>2*Math.abs(dy))go(pageNo+(dx<0?1:-1))},{passive:true});
