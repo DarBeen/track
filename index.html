@@ -80,7 +80,7 @@ th .ab{display:block;margin-top:3px;color:var(--fg);font-weight:500;font-size:15
 .sel:focus-within .face{outline:2px solid var(--a);outline-offset:2px}
 .pick label{flex:1 1 auto}
 .top .hd{flex:1 1 260px;min-width:0}.by{white-space:nowrap}
-.fab{position:fixed;z-index:20;right:16px;bottom:calc(20px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:6px;min-height:52px;padding:10px 18px 10px 12px;border:2px solid var(--a);border-radius:26px;background:var(--a);color:var(--on);font:800 18px var(--txt);box-shadow:0 6px 20px rgba(0,0,0,.55);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
+.fab{position:fixed;z-index:20;right:16px;top:58vh;display:flex;align-items:center;gap:6px;min-height:52px;padding:10px 18px 10px 12px;border:2px solid var(--a);border-radius:26px;background:var(--a);color:var(--on);font:800 18px var(--txt);box-shadow:0 6px 20px rgba(0,0,0,.55);cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none}
 .fab svg{width:22px;height:22px;flex:none}.fab.dragging{cursor:grabbing;opacity:.85}.fab[hidden]{display:none}
 .sumh{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:8px}.sumh h2{margin:0}
 #sum{border-top:1px solid var(--rule)}
@@ -281,11 +281,11 @@ const sg=(x,d=3)=>(x>=0?'+':'−')+Math.abs(x).toFixed(d);
 let R=null,A,B,cur=0,charts=[],sessions=[],uid=0,focusUid=0,grp='';
 const clip=(v,n)=>String(v==null?'':v).replace(/[\r\n,]+/g,' ').trim().slice(0,n);
 const inGrp=s=>!grp||String(s.cc)===grp;
-let pageNo=0,prevPage=2;const PAGES=['騎士','總覽','重點彎','比較','每彎'];
+let pageNo=0,prevPage=2,fabFix=()=>{};const PAGES=['騎士','總覽','重點彎','比較','每彎'];
 function go(n,dir){n=Math.max(0,Math.min(4,n));if(n!==pageNo)prevPage=pageNo;const d=dir==null?Math.sign(n-pageNo):dir;pageNo=n;
   document.querySelectorAll('.page').forEach(p=>{const on=+p.dataset.page===n;p.hidden=!on;if(on){p.style.setProperty('--dx',(d*24)+'px');p.style.animation='none';void p.offsetWidth;p.style.animation=''}});
   document.querySelectorAll('#tabs button').forEach(b=>{const on=+b.dataset.p===n;b.setAttribute('aria-selected',on);b.tabIndex=on?0:-1});
-  $('prev').hidden=n===0;$('next').hidden=n===4;if(n>0)$('prev').textContent='← '+PAGES[n-1];if(n<4)$('next').textContent=PAGES[n+1]+' →';$('pgN').textContent=(n+1)+' / 5';$('fab').hidden=n!==3;if(n===3)$('fabT').textContent='返回'+PAGES[prevPage===3?2:prevPage];
+  $('prev').hidden=n===0;$('next').hidden=n===4;if(n>0)$('prev').textContent='← '+PAGES[n-1];if(n<4)$('next').textContent=PAGES[n+1]+' →';$('pgN').textContent=(n+1)+' / 5';$('fab').hidden=n!==3;if(n===3)fabFix();if(n===3)$('fabT').textContent='返回'+PAGES[prevPage===3?2:prevPage];
   if(n===3&&R){renderCharts();paintCur()}window.scrollTo(0,0)}
 function gotoCompare(){go(3);document.querySelector('.an').scrollIntoView({behavior:'auto'})}
 const multi=()=>sessions.length>1;
@@ -468,14 +468,18 @@ document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>go(+b.dataset
 $('tabs').onkeydown=e=>{const k=e.key==='ArrowRight'?1:e.key==='ArrowLeft'?-1:0;if(!k)return;e.preventDefault();go(pageNo+k);$('tabs').querySelector('[aria-selected=true]').focus()};
 $('prev').onclick=()=>go(pageNo-1);
 (()=>{const f=$('fab');let sx,sy,ox,oy,moved=false,down=false;
-  const place=(x,y)=>{const w=f.offsetWidth,h=f.offsetHeight;x=Math.max(8,Math.min(innerWidth-w-8,x));y=Math.max(8,Math.min(innerHeight-h-8,y));f.style.left=x+'px';f.style.top=y+'px';f.style.right='auto';f.style.bottom='auto';return [x,y]};
+  const framed=(()=>{try{return window.self!==window.top}catch(_){return true}})(),maxY=()=>framed?Math.round(innerHeight*.72)-f.offsetHeight:innerHeight-f.offsetHeight-8;
+  const place=(x,y)=>{const w=f.offsetWidth,h=f.offsetHeight;x=Math.max(8,Math.min(innerWidth-w-8,x));y=Math.max(60,Math.min(maxY(),y));f.style.left=x+'px';f.style.top=y+'px';f.style.right='auto';f.style.bottom='auto';return [x,y]};
   try{const p=JSON.parse(localStorage.getItem('fabPos')||'null');if(p)requestAnimationFrame(()=>place(p[0]*innerWidth,p[1]*innerHeight))}catch(_){}
   f.onpointerdown=e=>{down=true;moved=false;sx=e.clientX;sy=e.clientY;const r=f.getBoundingClientRect();ox=r.left;oy=r.top;try{f.setPointerCapture(e.pointerId)}catch(_){}};
   f.onpointermove=e=>{if(!down)return;const dx=e.clientX-sx,dy=e.clientY-sy;if(!moved&&Math.hypot(dx,dy)<6)return;moved=true;f.classList.add('dragging');place(ox+dx,oy+dy)};
   f.onpointerup=f.onpointercancel=e=>{if(!down)return;down=false;f.classList.remove('dragging');
     if(moved){const r=f.getBoundingClientRect();try{localStorage.setItem('fabPos',JSON.stringify([r.left/innerWidth,r.top/innerHeight]))}catch(_){}}
-    else if(e.type==='pointerup')go(prevPage===3?2:prevPage)};
-  f.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go(prevPage===3?2:prevPage)}};
+};
+  // navigate on click (works in every viewer); a click that ends a drag is ignored
+  f.onclick=e=>{if(moved){moved=false;e.preventDefault();return}go(prevPage===3?2:prevPage)};
+  
+  fabFix=()=>{if(f.style.left){const r=f.getBoundingClientRect();place(r.left,r.top)}};
   addEventListener('resize',()=>{if(f.style.left){const r=f.getBoundingClientRect();place(r.left,r.top)}});})();$('next').onclick=()=>go(pageNo+1);
 let tx=null,ty=0;const noSwipe='svg,.tw,input,select,button,.laps';
 $('main').addEventListener('touchstart',e=>{tx=e.touches.length===1&&!e.target.closest(noSwipe)?e.touches[0].clientX:null;ty=e.touches[0].clientY},{passive:true});
