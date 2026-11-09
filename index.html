@@ -174,6 +174,8 @@ function parseRaceBox(text){
   const by={},all=[];
   for(let i=h+1;i<lines.length;i++){if(!lines[i].trim())continue;const p=splitCsv(lines[i],d),lap=parseInt(p[ix.l]);if(!(lap>0))continue;const tv=String(p[ix.t]).trim();let t=Date.parse(tv);t=isNaN(t)?num(tv):t/1000;const lat=num(p[ix.a]),lon=num(p[ix.o]),v=num(p[ix.v]);if(!isFinite(t)||!isFinite(lat)||!isFinite(lon)||!isFinite(v))continue;
     const q={t,lat,lon,v,g:ix.g>=0?(num(p[ix.g])||0):0,lean:ix.n>=0?(num(p[ix.n])||0):0};all.push(q);(by[lap]=by[lap]||[]).push(q);}
+  // the longitudinal G channel carries a mounting offset (device tilt); over whole laps real acceleration averages ~0, so remove the mean
+  if(ix.g>=0&&all.length){let m=0;for(const q of all)m+=q.g;m/=all.length;for(const q of all)q.g-=m;meta.__gBias=m}
   // RaceBox exports have no lean column: estimate it from GPS turn rate, lean = atan(v * yaw rate / g)
   if(ix.n<0&&all.length>3){const la=all[0].lat,kx=111320*Math.cos(la*Math.PI/180),ky=110574,n=all.length,hd=new Float64Array(n);
     for(let i=1;i<n;i++)hd[i]=Math.atan2((all[i].lat-all[i-1].lat)*ky,(all[i].lon-all[i-1].lon)*kx);hd[0]=hd[1];
@@ -243,8 +245,8 @@ function analyze(sessions){
     let pk=mi;for(let i=mi;i>=co.a;i--)if(lap.b[i]>lap.b[pk])pk=i;
     let bp=null;if(lap.b[pk]>=0.2){bp=pk;while(bp>co.a&&lap.b[bp-1]>=0.2)bp--;}
     let lean=0;for(let i=co.a;i<=co.b;i++)if(Math.abs(lap.lean[i])>lean)lean=Math.abs(lap.lean[i]);
-    const ex=Math.min(co.b,mi+25);
-    return {tIn:lap.t[co.ap]-lap.t[co.a],tOut:lap.t[co.b]-lap.t[co.ap],time:lap.t[co.b]-lap.t[co.a],minV:lap.v[mi],minS:mi,minLean:Math.abs(lap.lean[mi]),bp,peakB:lap.b[pk],exitV:lap.v[ex],entryV:lap.v[co.a],lean,off:lap.off[co.ap]};};
+    const ex=Math.min(co.b,mi+25);let acc=0;for(let i=mi;i<=co.b;i++)if(-lap.b[i]>acc)acc=-lap.b[i];
+    return {tIn:lap.t[co.ap]-lap.t[co.a],tOut:lap.t[co.b]-lap.t[co.ap],time:lap.t[co.b]-lap.t[co.a],minV:lap.v[mi],minS:mi,minLean:Math.abs(lap.lean[mi]),bp,peakB:lap.b[pk],exitV:lap.v[ex],peakA:acc,entryV:lap.v[co.a],lean,off:lap.off[co.ap]};};
   const cm={};for(const id of ids)cm[id]=c.map(co=>metrics(laps[id],co));
   if(!valid.length)throw new Error('沒有可用的完整圈。');
   const pool=sessions.length>1?sessions.map(s=>valid.filter(id=>owner[id]===s).reduce((a,b)=>a==null||dur[b]<dur[a]?b:a,null)).filter(x=>x!=null):valid;
@@ -440,11 +442,11 @@ function paintCur(){if(!R)return;const a=R.laps[A],b=R.laps[B],m=R.laps[R.best],
   $('read').innerHTML=[[`${Math.round(R.grid[i])} m`,c?`位置 · T${c.no}`:'位置'],[a.v[i].toFixed(1),`${esc(lab2(A))} km/h`],[b.v[i].toFixed(1),`${esc(lab2(B))} km/h`],[sg(d),'時間差 秒'],[`${Math.abs(a.lean[i]).toFixed(0)}°`,`${esc(lab2(A))} 傾角`],[`${Math.abs(b.lean[i]).toFixed(0)}°`,`${esc(lab2(B))} 傾角`]].map(x=>`<div><b>${x[0]}</b>${x[1]}</div>`).join('');
   document.querySelectorAll('#tb tr').forEach((r,k)=>r.classList.toggle('on',!!c&&c.no===k+1));}
 function renderTable(){const rb=focusR().best;$('tH').textContent=`左邊是基準 ${lab(A)}，右邊是比較 ${lab(B)}。時間差為正，表示比較圈較慢。點一列可到比較頁看該彎。`+(sessions.some(x=>x.raw.meta.__leanEst)?'RaceBox 檔案沒有傾角欄位，傾角是用 GPS 轉彎速度推算的，誤差約 ±3°。':'');
-  const pl=x=>nmLap(x).replace('Lap ','Lap'),ab=`<small class="ab">${esc(pl(A))}/${esc(pl(B))}</small>`;$('th').innerHTML=`<tr><th>彎</th><th>時間差 秒</th><th>煞車點差</th><th>最低速 km/h${ab}</th><th>最低速時傾角${ab}</th><th>出彎速 km/h${ab}</th><th>最大傾角${ab}</th><th>全場最快</th><th>${multi()?esc(focusR().s.name)+' ':''}最快圈可省 秒</th></tr>`;
+  const pl=x=>nmLap(x).replace('Lap ','Lap'),ab=`<small class="ab">${esc(pl(A))}/${esc(pl(B))}</small>`;$('th').innerHTML=`<tr><th>彎</th><th>時間差 秒</th><th>煞車點差</th><th>最大煞車 G${ab}</th><th>最低速 km/h${ab}</th><th>最低速時傾角${ab}</th><th>出彎速 km/h${ab}</th><th>出彎最大加速 G${ab}</th><th>最大傾角${ab}</th><th>全場最快</th><th>${multi()?esc(focusR().s.name)+' ':''}最快圈可省 秒</th></tr>`;
   const rows=R.corners.map((c,i)=>{const p=R.cm[A][i],q=R.cm[B][i],dt=q.time-p.time;let bd='—';if(p.bp!=null&&q.bp!=null){const k=q.bp-p.bp;bd=Math.abs(k)<1?'相同':(k>0?'晚 ':'早 ')+Math.abs(k)+' m'}
-    return `<tr tabindex="0" data-ap="${c.ap}"><td>T${c.no} ${c.side}</td><td class="w">${sg(dt)}</td><td>${bd}</td><td>${p.minV.toFixed(1)} <em>/</em> ${q.minV.toFixed(1)}</td><td>${p.minLean.toFixed(0)}° <em>/</em> ${q.minLean.toFixed(0)}°</td><td>${p.exitV.toFixed(1)} <em>/</em> ${q.exitV.toFixed(1)}</td><td>${p.lean.toFixed(0)}° <em>/</em> ${q.lean.toFixed(0)}°</td><td>${esc(lab2(c.bestLap))} ${c.bestT.toFixed(3)}</td><td>${c.gain.toFixed(3)}</td></tr>`});
+    return `<tr tabindex="0" data-ap="${c.ap}"><td>T${c.no} ${c.side}</td><td class="w">${sg(dt)}</td><td>${bd}</td><td>${p.peakB.toFixed(2)} <em>/</em> ${q.peakB.toFixed(2)}</td><td>${p.minV.toFixed(1)} <em>/</em> ${q.minV.toFixed(1)}</td><td>${p.minLean.toFixed(0)}° <em>/</em> ${q.minLean.toFixed(0)}°</td><td>${p.exitV.toFixed(1)} <em>/</em> ${q.exitV.toFixed(1)}</td><td>${p.peakA.toFixed(2)} <em>/</em> ${q.peakA.toFixed(2)}</td><td>${p.lean.toFixed(0)}° <em>/</em> ${q.lean.toFixed(0)}°</td><td>${esc(lab2(c.bestLap))} ${c.bestT.toFixed(3)}</td><td>${c.gain.toFixed(3)}</td></tr>`});
   const tot=R.laps[B].dur-R.laps[A].dur;
-  $('tb').innerHTML=rows.join('')+`<tr data-ap="-1"><td>整圈</td><td class="w">${sg(tot)}</td><td></td><td></td><td></td><td></td><td></td><td>${R.theo.toFixed(3)}</td><td>${(R.laps[rb].dur-R.theo).toFixed(3)}</td></tr>`;
+  $('tb').innerHTML=rows.join('')+`<tr data-ap="-1"><td>整圈</td><td class="w">${sg(tot)}</td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td>${R.theo.toFixed(3)}</td><td>${(R.laps[rb].dur-R.theo).toFixed(3)}</td></tr>`;
   document.querySelectorAll('#tb tr').forEach(r=>{const jump=()=>{const k=+r.dataset.ap;if(k>=0){setCur(k);gotoCompare()}};r.onclick=jump;r.onkeydown=e=>{if(e.key==='Enter')jump()}});}
 function showErr(m){$('err').textContent=m;$('err').hidden=!m}
 function showMsg(m){$('msg').textContent=m;$('msg').hidden=!m}
